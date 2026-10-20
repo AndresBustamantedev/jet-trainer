@@ -230,18 +230,17 @@ export class Hud {
   }
 
   // Gun reticle where the bullets go, hit markers and heat.
-  // Bomb aim: a big thin yellow circle where a bomb dropped now would land. It is the game
-  // helping you, not part of the jet's HUD, so it is drawn over the world and never clipped
-  // to the glass. It is at least the blast size on screen, and never tiny.
+  // Bomb aim: a thin yellow ring lying on the ground where a bomb dropped now would land,
+  // seen in perspective (round from above, a flat oval from a shallow dive) and draped over
+  // the terrain. It is the game helping you, not jet symbology, so it is never clipped to the
+  // HUD glass. It is at least the blast size, and grows with distance so it never gets tiny.
   bombCircle(s) {
     const b = s.bombs;
     if (!b || !b.selected || !b.impact || s.crashed) return;
-    const p = this.project(s.camera, b.impact);
-    if (!p) return;
-    _v.copy(b.impact).sub(s.camera.position);
-    const dist = _v.length();
-    const pxPerM = (this.h / 2) / Math.tan((s.camera.fov * DEG) / 2) / Math.max(dist, 1);
-    const r = Math.min(this.h * 0.2, Math.max(this.h * 0.04, BOMBS.radius * pxPerM));
+    const cam = s.camera;
+    const dist = _v.copy(b.impact).sub(cam.position).length();
+    const pxPerM = (this.h / 2) / Math.tan((cam.fov * DEG) / 2) / Math.max(dist, 1);
+    const R = Math.max(BOMBS.radius, (this.h * 0.04) / pxPerM);
     const { ctx } = this;
     ctx.save();
     ctx.globalAlpha = 0.9;
@@ -250,7 +249,22 @@ export class Hud {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
     ctx.shadowBlur = 3;
     ctx.beginPath();
-    ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
+    let open = false;
+    const n = 64;
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const x = b.impact.x + Math.cos(a) * R;
+      const z = b.impact.z + Math.sin(a) * R;
+      const y = Math.max(s.groundHeight(x, z), 0) + 0.5;
+      const p = this.project(cam, _c.set(x, y, z));
+      if (!p) {
+        open = false; // part of the ring is behind the camera: break the line there
+        continue;
+      }
+      if (open) ctx.lineTo(p[0], p[1]);
+      else ctx.moveTo(p[0], p[1]);
+      open = true;
+    }
     ctx.stroke();
     ctx.restore();
   }

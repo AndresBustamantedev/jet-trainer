@@ -378,6 +378,7 @@ function frame() {
     targetList: targets.list,
     gun,
     weapon,
+    groundHeight: world.groundHeight,
     bombs: isAttack() ? {
       selected: weapon === 'bombs',
       ammo: bombs.ammo,
