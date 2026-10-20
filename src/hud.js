@@ -4,6 +4,8 @@ import { TUNING } from './flight.js';
 
 const INK = '#e2fbef';
 const BEST = '#8effc7';
+const GLASS_INK = '#c9f26a'; // HUD symbology on the cockpit glass
+const GLASS_BEST = '#f4ffb8';
 const WARN = '#ffb547';
 const DANGER = '#ff5d4d';
 const FONT = "'B612', system-ui, sans-serif"; // Airbus's cockpit display typeface
@@ -22,6 +24,9 @@ export class Hud {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.time = 0;
+    this.ink = INK;
+    this.best = BEST;
+    this.L = null;
     this.resize();
     addEventListener('resize', () => this.resize());
   }
@@ -53,7 +58,7 @@ export class Hud {
     ctx.stroke();
   }
 
-  text(str, x, y, { size = 14, weight = 500, align = 'left', color = INK, base = 'middle' } = {}) {
+  text(str, x, y, { size = 14, weight = 500, align = 'left', color = this.ink, base = 'middle' } = {}) {
     const ctx = this.ctx;
     ctx.font = `${weight} ${size}px ${FONT}`;
     ctx.textAlign = align;
@@ -62,27 +67,83 @@ export class Hud {
     ctx.fillText(str, x, y);
   }
 
+  // Where the flight symbology goes: the whole screen in chase view, or inside the projected
+  // HUD glass in cockpit view (returns the glass outline on screen for clipping).
+  layout(s) {
+    let poly = null;
+    if (s.cameraMode === 'cockpit' && s.glass && !s.crashed) {
+      poly = s.glass.map((p) => this.project(s.camera, p));
+      if (poly.some((q) => !q)) poly = null;
+    }
+    if (!poly) {
+      this.L = { cx: this.w / 2, cy: this.h / 2, tapeOff: Math.min(this.w * 0.27, 380), tapeH: 320, headY: 54, glass: false };
+      this.ink = INK;
+      this.best = BEST;
+      return null;
+    }
+    const xs = poly.map((q) => q[0]);
+    const ys = poly.map((q) => q[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const gw = maxX - minX;
+    const gh = maxY - minY;
+    this.L = {
+      cx: (minX + maxX) / 2,
+      cy: minY + gh * 0.5,
+      tapeOff: gw * 0.36,
+      tapeH: Math.min(320, gh * 0.55),
+      headY: minY + gh * 0.13,
+      glass: true,
+      minX, maxX, minY, maxY,
+    };
+    this.ink = GLASS_INK;
+    this.best = GLASS_BEST;
+    return poly;
+  }
+
   draw(s) {
     const ctx = this.ctx;
     this.time += s.dt;
     ctx.clearRect(0, 0, this.w, this.h);
+    const poly = this.layout(s);
     ctx.save();
-    ctx.strokeStyle = INK;
     ctx.lineWidth = 1.6;
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     ctx.shadowBlur = 4;
+    ctx.strokeStyle = this.ink;
     this.targets(s);
-    if (!s.crashed) {
+
+    ctx.save();
+    if (poly) {
+      // On the glass the symbols glow a little and stop at the glass edge.
+      ctx.beginPath();
+      poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.clip();
+      ctx.shadowColor = 'rgba(190, 255, 110, 0.35)';
+      ctx.shadowBlur = 3;
+    }
+    // Looking away from the glass in cockpit view (free look): no flight symbols at all.
+    const offGlass = s.cameraMode === 'cockpit' && s.glass && !s.crashed && !poly;
+    if (!s.crashed && !offGlass) {
       this.ladder(s);
       this.markers(s);
       this.gunHud(s);
     }
+    if (!offGlass) {
+      this.speedTape(s);
+      this.altTape(s);
+      this.headingTape(s);
+    }
+    if (poly) this.glassStatus(s);
+    ctx.restore();
+
+    ctx.strokeStyle = this.ink;
     this.score(s);
     if (s.stats) this.statsPanel(s.stats);
     if (s.toast) this.text(s.toast, this.w / 2, 104, { size: 15, weight: 700, align: 'center', color: WARN });
-    this.speedTape(s);
-    this.altTape(s);
-    this.headingTape(s);
     this.info(s);
     this.inputs(s);
     this.warnings(s);
@@ -145,7 +206,7 @@ export class Hud {
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(aim[0], aim[1], 1.8, 0, Math.PI * 2);
-        ctx.fillStyle = INK;
+        ctx.fillStyle = this.ink;
         ctx.fill();
         ctx.globalAlpha = 1;
       }
@@ -167,13 +228,13 @@ export class Hud {
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(x, y, 1.6, 0, Math.PI * 2);
-    ctx.fillStyle = INK;
+    ctx.fillStyle = this.ink;
     ctx.fill();
 
     const kill = s.killAge < 0.35;
     if (s.hitAge < 0.15 || kill) {
       ctx.save();
-      ctx.strokeStyle = kill ? DANGER : INK;
+      ctx.strokeStyle = kill ? DANGER : this.ink;
       ctx.lineWidth = kill ? 2.6 : 2;
       const r0 = kill ? 14 : 11;
       const r1 = kill ? 26 : 19;
@@ -190,7 +251,7 @@ export class Hud {
       ctx.globalAlpha = 0.5;
       ctx.strokeRect(x - bw / 2, y + 26, bw, 5);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = over ? DANGER : s.gun.heat > 0.75 ? WARN : INK;
+      ctx.fillStyle = over ? DANGER : s.gun.heat > 0.75 ? WARN : this.ink;
       ctx.fillRect(x - bw / 2, y + 26, bw * s.gun.heat, 5);
       if (over && s.killAge >= 1.6) this.text('Overheated', x, y + 46, { size: 14, weight: 600, align: 'center', color: DANGER });
     }
@@ -281,7 +342,7 @@ export class Hud {
     ctx.fillRect(x, y - 15, w, 30);
     ctx.strokeStyle = color;
     ctx.strokeRect(x, y - 15, w, 30);
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = this.ink;
     this.text(str, align === 'right' ? x + w - 8 : x + 8, y + 1, { size: 19, weight: 700, align, color });
   }
 
@@ -289,17 +350,15 @@ export class Hud {
     const { ctx } = this;
     const T = TUNING;
     const kmh = s.fm.kmh;
-    const cx = this.w / 2;
-    const cy = this.h / 2;
-    const x = cx - Math.min(this.w * 0.27, 380);
-    const H = 320;
+    const { cx, cy, tapeOff, tapeH: H } = this.L;
+    const x = cx - tapeOff;
     const ppu = 1.4;
     ctx.save();
     ctx.beginPath();
     ctx.rect(x - 70, cy - H / 2, 90, H);
     ctx.clip();
     const yOf = (v) => cy + (kmh - v) * ppu;
-    ctx.fillStyle = BEST;
+    ctx.fillStyle = this.best;
     ctx.globalAlpha = 0.85;
     ctx.fillRect(x + 3, yOf(T.sweetHighKmh), 4, yOf(T.sweetLowKmh) - yOf(T.sweetHighKmh));
     ctx.globalAlpha = 1;
@@ -313,18 +372,16 @@ export class Hud {
     }
     ctx.restore();
     const best = kmh >= T.sweetLowKmh && kmh <= T.sweetHighKmh;
-    this.valueBox(x - 88, cy, 70, String(Math.round(kmh)), best ? BEST : INK, 'right');
+    this.valueBox(x - 88, cy, 70, String(Math.round(kmh)), best ? this.best : this.ink, 'right');
     this.text('km/h', x - 26, cy + 28, { size: 12, align: 'right' });
-    this.text('Best turn', x + 12, yOf(T.sweetLowKmh) - 4, { size: 12, color: BEST, base: 'bottom' });
+    this.text('Best turn', x + 12, yOf(T.sweetLowKmh) - 4, { size: 12, color: this.best, base: 'bottom' });
   }
 
   altTape(s) {
     const { ctx } = this;
     const alt = s.fm.position.y;
-    const cx = this.w / 2;
-    const cy = this.h / 2;
-    const x = cx + Math.min(this.w * 0.27, 380);
-    const H = 320;
+    const { cx, cy, tapeOff, tapeH: H } = this.L;
+    const x = cx + tapeOff;
     const ppu = 1;
     ctx.save();
     ctx.beginPath();
@@ -340,17 +397,17 @@ export class Hud {
     }
     ctx.restore();
     const low = s.agl < 60;
-    this.valueBox(x + 18, cy, 70, String(Math.round(alt)), alt > TUNING.ceiling ? WARN : INK, 'left');
+    this.valueBox(x + 18, cy, 70, String(Math.round(alt)), alt > TUNING.ceiling ? WARN : this.ink, 'left');
     this.text('m', x + 26, cy + 28, { size: 12 });
-    this.text(`Above ground ${Math.max(0, Math.round(s.agl))}`, x + 18, cy + H / 2 + 14, { size: 13, color: low ? WARN : INK });
+    if (!this.L.glass) this.text(`Above ground ${Math.max(0, Math.round(s.agl))}`, x + 18, cy + H / 2 + 14, { size: 13, color: low ? WARN : this.ink });
   }
 
   headingTape(s) {
     const fwd = s.fm.fwd;
     let hdg = Math.atan2(fwd.x, -fwd.z) / DEG;
     if (hdg < 0) hdg += 360;
-    const cx = this.w / 2;
-    const y = 54;
+    const cx = this.L.cx;
+    const y = this.L.headY;
     const ppd = 4;
     const half = 50;
     for (let d = Math.floor((hdg - half) / 5) * 5; d <= hdg + half; d += 5) {
@@ -369,17 +426,38 @@ export class Hud {
     this.text(String(Math.round(hdg) % 360).padStart(3, '0'), cx, y + 34, { size: 16, weight: 700, align: 'center' });
   }
 
+  // Short status lines on the HUD glass, like a real HUD: Mach, G and throttle on the left,
+  // gun state and height above ground on the right.
+  glassStatus(s) {
+    const { cx, minY, maxY, tapeOff } = this.L;
+    const fm = s.fm;
+    const y = minY + (maxY - minY) * 0.86;
+    const thr = fm.boost ? 'AB' : fm.throttle > 0 ? 'MIL' : fm.throttle < 0 ? 'BRK' : 'CRZ';
+    const left = [`M ${(fm.kmh / 1225).toFixed(2)}`, `G ${fm.g.toFixed(1)}`, thr];
+    const gun = s.gun.overheated ? 'GUN OVHT' : s.gun.heat > 0.75 ? 'GUN HOT' : 'CANNON RDY';
+    const right = [`AL ${Math.max(0, Math.round(s.agl))}`, gun, `TURN ${Math.round(fm.turnEff * 100)}`];
+    const font = { size: 12, weight: 700 };
+    left.forEach((t, i) => this.text(t, cx - tapeOff + 4, y + i * 15, { ...font, color: i === 2 && fm.boost ? WARN : this.ink }));
+    right.forEach((t, i) => this.text(t, cx + tapeOff - 4, y + i * 15, { ...font, align: 'right', color: t.startsWith('GUN ') ? WARN : this.ink }));
+  }
+
   info(s) {
     const fm = s.fm;
     const x = 28;
     let y = this.h - 132;
+    if (this.L.glass) {
+      // Flight numbers are on the glass in cockpit view; keep only the top-left lines.
+      this.text(s.presetName, 28, 30, { size: 17, weight: 700, color: INK });
+      this.text(`${s.keyNames.fire} fire     Esc settings     ${s.keyNames.camera} camera     ${s.keyNames.respawn} respawn`, 28, 52, { size: 13, color: INK });
+      return;
+    }
     const thr = fm.boost ? 'Afterburner' : fm.throttle > 0 ? 'Throttle up' : fm.throttle < 0 ? 'Air brake' : 'Cruise';
-    this.text(thr, x, y, { size: 22, weight: 700, color: fm.boost ? WARN : INK });
+    this.text(thr, x, y, { size: 22, weight: 700, color: fm.boost ? WARN : this.ink });
     y += 28;
     this.text(`G ${fm.g.toFixed(1)}`, x, y, { size: 16 });
     y += 22;
     const eff = Math.round(fm.turnEff * 100);
-    this.text(`Turn rate ${eff}%`, x, y, { size: 16, color: eff >= 98 ? BEST : INK });
+    this.text(`Turn rate ${eff}%`, x, y, { size: 16, color: eff >= 98 ? this.best : this.ink });
     y += 22;
     this.text(`Camera: ${s.cameraMode === 'chase' ? 'chase' : 'cockpit'}`, x, y, { size: 14 });
 
@@ -402,7 +480,7 @@ export class Hud {
     ctx.globalAlpha = 1;
     ctx.beginPath();
     ctx.arc(bx + cmd.roll * r, by - cmd.pitch * r, 4.5, 0, Math.PI * 2);
-    ctx.fillStyle = INK;
+    ctx.fillStyle = this.ink;
     ctx.fill();
     this.text('Pitch and roll', bx, by + r + 14, { size: 12, align: 'center' });
 
@@ -412,7 +490,7 @@ export class Hud {
     ctx.globalAlpha = 0.5;
     ctx.strokeRect(yx - yw, by - 5, yw * 2, 10);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = INK;
+    ctx.fillStyle = this.ink;
     ctx.fillRect(Math.min(yx, yx + cmd.yaw * yw), by - 5, Math.abs(cmd.yaw * yw), 10);
     this.line([yx, by - 9], [yx, by + 9]);
     this.text('Yaw', yx, by + r + 14, { size: 12, align: 'center' });
@@ -422,7 +500,7 @@ export class Hud {
     ctx.globalAlpha = 0.5;
     ctx.strokeRect(tx - 5, by - r, 10, r * 2);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = cmd.boost ? WARN : INK;
+    ctx.fillStyle = cmd.boost ? WARN : this.ink;
     if (cmd.boost) ctx.fillRect(tx - 5, by - r, 10, r);
     else if (cmd.throttle !== 0) ctx.fillRect(tx - 5, cmd.throttle > 0 ? by - r * 0.6 : by, 10, r * 0.6);
     this.line([tx - 9, by], [tx + 9, by]);

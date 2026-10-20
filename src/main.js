@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createWorld, WORLD } from './world.js';
-import { Jet, Explosion, COCKPIT_LAYER } from './jet.js';
+import { Jet, Explosion, COCKPIT_LAYER, COCKPIT_VIEW_LAYER, EYE } from './jet.js';
 import { FlightModel, aimInputs, TUNING } from './flight.js';
 import { Controls, keyLabel } from './controls.js';
 import { Hud } from './hud.js';
@@ -18,14 +18,14 @@ const canvas = document.getElementById('scene');
 // Log depth keeps far surfaces apart. Without it the water flickers over the ground under it.
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight, false);
+renderer.setSize(Math.max(1, innerWidth), Math.max(1, innerHeight), false);
 renderer.info.autoReset = false; // the stats overlay counts every pass of a frame
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.5, 40000);
+const camera = new THREE.PerspectiveCamera(70, Math.max(1, innerWidth) / Math.max(1, innerHeight), 0.5, 40000);
 const world = createWorld(scene, renderer);
 const jet = new Jet(scene);
 const explosion = new Explosion(scene);
@@ -66,7 +66,7 @@ const targetQuat = new THREE.Quaternion();
 const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.07);
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 const CHASE_OFFSET = new THREE.Vector3(0, 4.2, 19);
-const COCKPIT_OFFSET = new THREE.Vector3(0, 0.95, -3.4);
+const COCKPIT_OFFSET = EYE;
 const _v = new THREE.Vector3();
 
 function updateAimDir() {
@@ -199,8 +199,9 @@ function step(dt) {
 world.sun.shadow.camera.layers.enable(COCKPIT_LAYER);
 
 function placeCamera(dt) {
+  // Chase view shows the pilot and canopy; cockpit view shows the panel and HUD glass instead.
   camera.layers.set(0);
-  if (state.cameraMode !== 'cockpit') camera.layers.enable(COCKPIT_LAYER);
+  camera.layers.enable(state.cameraMode === 'cockpit' ? COCKPIT_VIEW_LAYER : COCKPIT_LAYER);
   const aimMode = controls.config.mouse === 'aim';
   if (state.crashed) {
     camera.lookAt(explosion.group.position);
@@ -264,11 +265,7 @@ document.addEventListener('pointerlockerror', () => {
   menu.setMessage('The browser did not lock the mouse. Click Fly again in a second.');
 });
 
-addEventListener('resize', () => {
-  graphics.resize();
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-});
+addEventListener('resize', () => graphics.resize());
 
 // Lower the render resolution a step when frames are slow. Raise it again only after a long
 // fast stretch, and never straight after lowering it, so it does not bounce (that looked like flicker).
@@ -316,6 +313,23 @@ function adaptResolution(rawDt) {
   }
 }
 
+// The small green cockpit screen, redrawn four times a second.
+let screenTimer = 0;
+function updateCockpitScreen() {
+  const now = performance.now();
+  if (now < screenTimer) return;
+  screenTimer = now + 250;
+  const thr = fm.boost ? 'AFTERBURNER' : fm.throttle > 0 ? 'THROTTLE UP' : fm.throttle < 0 ? 'AIR BRAKE' : 'CRUISE';
+  const acc = score.shots ? Math.round((100 * score.hits) / score.shots) : 0;
+  jet.setDisplay([
+    thr,
+    `SPD ${String(Math.round(fm.kmh)).padStart(4)} KMH`,
+    `ALT ${String(Math.round(fm.position.y)).padStart(4)} M`,
+    `KILLS ${score.kills}  ACC ${acc}%`,
+    gun.overheated ? 'GUN OVERHEAT' : `GUN HEAT ${Math.round(gun.heat * 100)}%`,
+  ]);
+}
+
 const clock = new THREE.Clock();
 function frame() {
   const rawDt = clock.getDelta();
@@ -327,7 +341,9 @@ function frame() {
   world.update(camera, fm.position);
   graphics.render();
   gun.muzzle(fm, gunPoint).addScaledVector(fm.fwd, 500);
+  if (state.cameraMode === 'cockpit') updateCockpitScreen();
   hud.draw({
+    glass: state.cameraMode === 'cockpit' ? jet.glassPoints() : null,
     dt,
     gunPoint,
     targetList: targets.list,
