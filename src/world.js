@@ -61,7 +61,8 @@ function terrainHeightRaw(x, z) {
   const mountains = smoothstep(0.48, 0.68, base);
   const h = (base - 0.36) * 480 + ridge * ridge * ridge * 420 * mountains;
   const mask = 1 - smoothstep(0.6, 0.97, Math.hypot(x, z) / HALF);
-  return h * mask + WORLD.seaFloor * (1 - mask);
+  const out = h * mask + WORLD.seaFloor * (1 - mask);
+  return out - 2.5 * smoothstep(0, -2, out); // keep the seabed clear of the water surface
 }
 
 // Where forests grow. Used for both tree placement and the darker forest floor.
@@ -106,24 +107,33 @@ function terrainMaterial() {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, metalness: 0, envMapIntensity: 0.35 });
   m.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aForest;\nvarying float vForest;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;')
+      .replace('#include <common>', `#include <common>
+attribute float aForest;
+varying float vForest;
+varying vec3 vWPos;
+varying vec3 vWNormal;
+varying vec2 vNoise;
+${GLSL_NOISE}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 vForest = aForest;
 vWPos = (modelMatrix * vec4(position, 1.0)).xyz;
-vWNormal = normalize(mat3(modelMatrix) * normal);`);
+vWNormal = normalize(mat3(modelMatrix) * normal);
+// Large patches change slowly, so they are worked out per vertex (29 m apart), not per pixel.
+vNoise = vec2(wFbm(vWPos.xz * 0.0012), wFbm(vWPos.xz * 0.011));`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 varying float vForest;
 varying vec3 vWPos;
 varying vec3 vWNormal;
+varying vec2 vNoise;
 ${GLSL_NOISE}`)
       .replace('#include <color_fragment>', /* glsl */ `#include <color_fragment>
 {
   float h = vWPos.y;
   vec2 p = vWPos.xz;
   float slope = 1.0 - clamp(normalize(vWNormal).y, 0.0, 1.0);
-  float macro = wFbm(p * 0.0012);
-  float mid = wFbm(p * 0.011);
+  float macro = vNoise.x;
+  float mid = vNoise.y;
   float fine = wNoise(p * 0.45) * 0.5 + wNoise(p * 1.7) * 0.5;
 
   vec3 grassA = vec3(0.105, 0.17, 0.05);
@@ -177,6 +187,7 @@ ${GLSL_NOISE}`)
 function waterMaterial(time) {
   const m = new THREE.MeshStandardMaterial({
     color: '#1b5566', roughness: 0.07, metalness: 0, transparent: true, opacity: 0.84, envMapIntensity: 1.1,
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4,
   });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = time;

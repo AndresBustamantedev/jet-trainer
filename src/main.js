@@ -12,13 +12,14 @@ import { Sfx } from './audio.js';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 const canvas = document.getElementById('scene');
-// Log depth keeps far surfaces apart (water over shallow ground flickered without it).
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const MAX_PIXEL_RATIO = Math.min(devicePixelRatio, 2);
+let pixelRatio = MAX_PIXEL_RATIO;
+renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.5, 40000);
@@ -196,6 +197,8 @@ function placeCamera(dt) {
     camera.quaternion.multiply(tilt);
   }
 
+  // A larger near plane gives far surfaces more depth precision (water over shallow ground flickered).
+  camera.near = state.cameraMode === 'cockpit' ? 0.25 : 1.5;
   const base = state.cameraMode === 'cockpit' ? 78 : 70;
   let fov = base + clamp((fm.kmh - TUNING.cruiseKmh) / 330, -0.5, 1) * 7;
   if (look.zoom) fov /= 1.8;
@@ -237,9 +240,29 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
+// Lower the render resolution a step when frames are slow, raise it again when there is room.
+const perf = { time: 0, frames: 0 };
+function adaptResolution(rawDt) {
+  perf.time += rawDt;
+  perf.frames++;
+  if (perf.time < 2) return;
+  const ms = (perf.time / perf.frames) * 1000;
+  perf.time = perf.frames = 0;
+  let next = pixelRatio;
+  if (ms > 19) next = Math.max(1, pixelRatio - 0.25);
+  else if (ms < 13) next = Math.min(MAX_PIXEL_RATIO, pixelRatio + 0.25);
+  if (next !== pixelRatio) {
+    pixelRatio = next;
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(innerWidth, innerHeight, false);
+  }
+}
+
 const clock = new THREE.Clock();
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.05);
+  if (!state.paused && rawDt < 0.25) adaptResolution(rawDt);
   if (!state.paused) step(dt);
   placeCamera(dt);
   world.update(camera, fm.position);
