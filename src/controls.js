@@ -128,6 +128,7 @@ function presetConfig(id, base = {}) {
     sound: base.sound ?? true,
     showStats: base.showStats ?? false,
     quality: base.quality === 'performance' || base.quality === 'high' ? base.quality : DEFAULT_QUALITY,
+    qualityChosen: base.qualityChosen ?? false, // true once the player picks a mode themselves
     keys,
   };
 }

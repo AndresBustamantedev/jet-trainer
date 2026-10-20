@@ -79,6 +79,7 @@ export class Hud {
     }
     this.score(s);
     if (s.stats) this.statsPanel(s.stats);
+    if (s.toast) this.text(s.toast, this.w / 2, 104, { size: 15, weight: 700, align: 'center', color: WARN });
     this.speedTape(s);
     this.altTape(s);
     this.headingTape(s);

@@ -272,7 +272,8 @@ addEventListener('resize', () => {
 
 // Lower the render resolution a step when frames are slow. Raise it again only after a long
 // fast stretch, and never straight after lowering it, so it does not bounce (that looked like flicker).
-const perf = { time: 0, frames: 0, fastWindows: 0, holdUntil: 0 };
+const perf = { time: 0, frames: 0, fastWindows: 0, holdUntil: 0, slowAtFloor: 0 };
+const toast = { text: '', until: 0 };
 function adaptResolution(rawDt) {
   perf.time += rawDt;
   perf.frames++;
@@ -282,6 +283,21 @@ function adaptResolution(rawDt) {
   const now = performance.now();
   const pixelRatio = renderer.getPixelRatio();
   let next = pixelRatio;
+  // Still slow at the lowest resolution for 6 s: drop High to Performance, unless the player
+  // picked High themselves. Remembered, so the next visit starts on Performance.
+  perf.slowAtFloor = ms > 22 && pixelRatio <= 1 ? perf.slowAtFloor + 1 : 0;
+  const c = controls.config;
+  if (perf.slowAtFloor >= 3 && graphics.high && !c.qualityChosen) {
+    perf.slowAtFloor = 0;
+    c.quality = 'performance';
+    controls.save();
+    graphics.setQuality('performance');
+    graphics.setPixelRatio(1);
+    perf.holdUntil = now + 30000;
+    toast.text = 'Switched to Performance graphics to keep it smooth. You can change it in the menu.';
+    toast.until = now + 6000;
+    return;
+  }
   if (ms > 20) {
     next = Math.max(1, pixelRatio - 0.25);
     perf.fastWindows = 0;
@@ -318,6 +334,7 @@ function frame() {
     gun,
     score,
     stats: controls.config.showStats ? stats.out : null,
+    toast: performance.now() < toast.until ? toast.text : '',
     hitAge: fx.hitAge,
     killAge: fx.killAge,
     fm,

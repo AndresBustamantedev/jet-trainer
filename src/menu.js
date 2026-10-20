@@ -125,6 +125,7 @@ export function createMenu(root, controls, { onFly, onQuality }) {
     }));
     root.querySelectorAll('[data-quality]').forEach((b) => b.addEventListener('click', () => {
       c.quality = b.dataset.quality;
+      c.qualityChosen = true;
       controls.save();
       onQuality(c.quality);
       render();
