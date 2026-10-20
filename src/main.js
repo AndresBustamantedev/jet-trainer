@@ -432,6 +432,7 @@ function frame() {
     dt,
     gunPoint,
     targetList: targets.list,
+    sites: world.sites,
     gun,
     weapon,
     groundHeight: world.groundHeight,

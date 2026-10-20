@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { TUNING } from './flight.js';
 import { BOMBS } from './bombs.js';
 import { SEE } from './targets.js';
+import { siteDistance } from './places.js';
 
 const INK = '#e2fbef';
 const BEST = '#8effc7';
@@ -13,6 +14,8 @@ const BOMB_AIM = '#f5d33c'; // the game's bomb aim aid, not jet symbology
 const DANGER = '#ff5d4d';
 const FONT = "'B612', system-ui, sans-serif"; // Airbus's cockpit display typeface
 const DEG = Math.PI / 180;
+const PLACE_NAMES = { town: 'Town', airfield: 'Airfield', base: 'Base', industrial: 'Industrial', village: 'Village', radar: 'Radar' };
+const PLACE_NEAR = 1000; // place pins hide once you are this close to the place's edge
 const UP = new THREE.Vector3(0, 1, 0);
 
 const _v = new THREE.Vector3();
@@ -122,6 +125,7 @@ export class Hud {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     ctx.shadowBlur = 4;
     ctx.strokeStyle = this.ink;
+    this.places(s);
     this.targets(s);
     this.bombCircle(s);
 
@@ -315,6 +319,31 @@ export class Hud {
       ctx.fillStyle = over ? DANGER : s.gun.heat > 0.75 ? WARN : this.ink;
       ctx.fillRect(x - bw / 2, y + 26, bw * s.gun.heat, 5);
       if (over && s.killAge >= 1.6) this.text('Overheated', x, y + 46, { size: 14, weight: 600, align: 'center', color: DANGER });
+    }
+  }
+
+  // A pin over each place, seen from afar so you can find the fights. It fades out as you
+  // close in, where the units themselves take over.
+  places(s) {
+    if (!s.sites) return;
+    const { ctx } = this;
+    const me = s.fm.position;
+    for (const site of s.sites) {
+      const near = siteDistance(site, me.x, me.z);
+      if (near < PLACE_NEAR) continue;
+      const p = this.project(s.camera, _c.set(site.x, site.h + 25, site.z));
+      if (!p) continue;
+      const [x, y] = p;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (near - PLACE_NEAR) / 300) * 0.85;
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x + 5, y - 9); ctx.lineTo(x - 5, y - 9);
+      ctx.closePath();
+      ctx.fill();
+      const km = Math.hypot(site.x - me.x, site.z - me.z) / 1000;
+      this.text(`${PLACE_NAMES[site.kind] || site.kind}  ${km.toFixed(1)} km`, x, y - 20, { size: 12, weight: 600, align: 'center', color: INK });
+      ctx.restore();
     }
   }
 
