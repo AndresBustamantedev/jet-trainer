@@ -110,6 +110,9 @@ const KEY_NAMES = {
 // Defaults follow EA's BF6 controller layout for jets.
 export const PAD_DEFAULTS = {
   fire: 'Pad7', // R2
+  nextWeapon: 'Pad3', // Triangle switches weapon (attack jet)
+  weapon1: 'Pad14', // D-pad left: machine gun
+  weapon2: 'Pad15', // D-pad right: bombs
   afterburner: 'Pad10', // L3
   throttleUp: 'Axis1-', // left stick up
   throttleDown: 'Axis1+', // left stick down

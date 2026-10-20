@@ -153,7 +153,10 @@ function step(dt) {
   score.kills += bombRun.kills;
   if (bombRun.kills) fx.killAge = 0;
   if (bombRun.drops) sfx.drop();
-  if (bombRun.booms) sfx.boom();
+  if (bombRun.booms) {
+    sfx.boom();
+    controls.buzz(0.6, 0.45, 260);
+  }
   score.shots += shot.shots;
   score.hits += shot.hits;
   score.kills += shot.kills;

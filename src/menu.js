@@ -80,7 +80,9 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
       return `<button class="${cls}" data-pad="${action}" aria-label="Controller input for this action">${isWaiting ? 'press input' : padLabel(code, controls.padStyle)}</button>`;
     };
     const gp = controls.gamepad;
-    const padName = gp ? gp.id.replace(/\s*\(.*\)\s*$/, '') || 'Controller' : '';
+    // The name comes from the device, so it is escaped before it goes into the page.
+    const escape = (t) => t.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+    const padName = gp ? escape(gp.id.replace(/\s*\(.*\)\s*$/, '')) || 'Controller' : '';
     const menuBtn = controls.padStyle === 'xbox' ? 'Menu' : 'Options';
     const padStatus = gp
       ? `<p class="pad-status on"><b>${padName}</b> connected. Press ${menuBtn} to fly, and again to come back here.</p>
@@ -144,7 +146,7 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
               ${checkbox('padInvertY', 'Invert pitch', c.padInvertY)}
               ${checkbox('padToggle', 'Tap for afterburner and free look', c.padToggle)}
               ${line('Vibration', `<button class="reset inline" data-rumble-test ${gp ? '' : 'disabled'}>Test</button><input type="checkbox" class="sr" id="rumble" ${c.rumble ? 'checked' : ''}><label class="box" for="rumble">${TICK}</label>`, 'rumble')}
-              <p class="hint">BF6 layout: left stick throttle and yaw, L3 afterburner, right stick pitch and roll (pull back to climb), R2 fire, L2 zoom, R3 camera, D-pad down free look, Cross respawn, touchpad stats.</p>
+              <p class="hint">BF6 layout: left stick throttle and yaw, L3 afterburner, right stick pitch and roll (pull back to climb), R2 fire, L2 zoom, R3 camera, D-pad down free look, Cross respawn, touchpad stats. Attack jet: Triangle switches weapon, D-pad left gun, D-pad right bombs.</p>
             </li>
             <li>
               <h2>Check your keys</h2>
