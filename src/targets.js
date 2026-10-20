@@ -13,7 +13,7 @@ const KINDS = {
   air: { radius: 5.5, health: 100, respawn: 5 },
   tank: { radius: 6, health: 150, respawn: 8, center: 2.4, speed: 7, drive: 220, driveChance: 0.5 },
   aa: { radius: 5.5, health: 90, respawn: 8, center: 2.9, speed: 0, drive: 0, driveChance: 0 },
-  soldier: { radius: 0.9, health: 9, respawn: 10, center: 0.9, speed: 1.4, drive: 30, driveChance: 0.5 },
+  soldier: { radius: 1.2, health: 9, respawn: 10, center: 0.9, speed: 1.4, drive: 30, driveChance: 0.5 },
 };
 
 const _a = new THREE.Vector3();
@@ -190,13 +190,24 @@ export class Targets {
       const x = a.start.x + Math.cos(ang) * d;
       const z = a.start.z + Math.sin(ang) * d;
       const h = this.groundHeight(x, z);
-      if (h > 4 && !this.world.insideBuilding(out.set(x, h + 1, z), 2)) return out.set(x, h, z);
+      // Flat-ish ground only: on a steep slope the uphill ground hides the legs.
+      if (h > 4 && this.world.slopeAt(x, z) < 0.3 && !this.world.insideBuilding(out.set(x, h + 1, z), 2)) return out.set(x, h, z);
     }
     return this.groundSpot(out);
   }
 
   spawnGround(t) {
-    t.start = t.kind === 'soldier' ? this.soldierSpot(t.start || new THREE.Vector3(), t) : this.groundSpot(t.start || new THREE.Vector3());
+    // Soldiers come back where they stood, so a group you strafed is there again on the next pass.
+    if (t.kind === 'soldier' && t.home) {
+      t.start.copy(t.home);
+      t.roofY = t.homeRoof;
+    } else if (t.kind === 'soldier') {
+      t.start = this.soldierSpot(new THREE.Vector3(), t);
+      t.home = t.start.clone();
+      t.homeRoof = t.roofY;
+    } else {
+      t.start = this.groundSpot(t.start || new THREE.Vector3());
+    }
     t.heading = Math.random() * Math.PI * 2;
     t.dirX = -Math.sin(t.heading);
     t.dirZ = -Math.cos(t.heading);

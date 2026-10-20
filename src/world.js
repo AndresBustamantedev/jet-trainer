@@ -593,8 +593,22 @@ export function createWorld(scene, renderer) {
   terrain.receiveShadow = true;
   scene.add(terrain);
 
+  // Height on the drawn triangles themselves (not a smooth blend), so things stand exactly on
+  // the ground you see. Each grid cell is split along the same diagonal as the terrain mesh.
   function groundHeight(x, z) {
-    return sampleGrid(heights, x, z, WORLD.seaFloor);
+    const fx = (x + HALF) / CELL;
+    const fz = (z + HALF) / CELL;
+    const ix = Math.floor(fx);
+    const iz = Math.floor(fz);
+    if (ix < 0 || iz < 0 || ix >= N || iz >= N) return WORLD.seaFloor;
+    const tx = fx - ix;
+    const tz = fz - iz;
+    const a = heights[iz * (N + 1) + ix];
+    const d = heights[iz * (N + 1) + ix + 1];
+    const b = heights[(iz + 1) * (N + 1) + ix];
+    const c = heights[(iz + 1) * (N + 1) + ix + 1];
+    if (tx + tz <= 1) return a + (d - a) * tx + (b - a) * tz;
+    return c + (b - c) * (1 - tx) + (d - c) * (1 - tz);
   }
   function lightAt(x, z) {
     // Combined baked light for objects standing on the ground (trees, buildings).
