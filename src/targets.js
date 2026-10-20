@@ -170,8 +170,18 @@ export class Targets {
     return out.set(0, Math.max(this.groundHeight(0, 0), 0), 0);
   }
 
-  // Soldiers stand in small groups near a tank or AA gun, or anywhere near the town.
-  soldierSpot(out) {
+  // About a third of the soldiers stand on flat rooftops in the town, the rest in small groups
+  // near a tank or AA gun.
+  soldierSpot(out, t) {
+    t.roofY = null;
+    const roofs = this.world.rooftops || [];
+    if (roofs.length && Math.random() < 0.35) {
+      const b = roofs[Math.floor(Math.random() * roofs.length)];
+      const u = 0.25 + Math.random() * 0.5;
+      const v = 0.25 + Math.random() * 0.5;
+      t.roofY = b.max[1];
+      return out.set(b.min[0] + (b.max[0] - b.min[0]) * u, t.roofY, b.min[2] + (b.max[2] - b.min[2]) * v);
+    }
     const anchors = this.list.filter((o) => o.alive && (o.kind === 'tank' || o.kind === 'aa'));
     for (let i = 0; i < 40 && anchors.length; i++) {
       const a = anchors[Math.floor(Math.random() * anchors.length)];
@@ -186,13 +196,13 @@ export class Targets {
   }
 
   spawnGround(t) {
-    t.start = t.kind === 'soldier' ? this.soldierSpot(t.start || new THREE.Vector3()) : this.groundSpot(t.start || new THREE.Vector3());
+    t.start = t.kind === 'soldier' ? this.soldierSpot(t.start || new THREE.Vector3(), t) : this.groundSpot(t.start || new THREE.Vector3());
     t.heading = Math.random() * Math.PI * 2;
     t.dirX = -Math.sin(t.heading);
     t.dirZ = -Math.cos(t.heading);
     // Some tanks and soldiers patrol back and forth, the rest and the AA guns stand still.
     const end = this.groundHeight(t.start.x + t.dirX * t.drive, t.start.z + t.dirZ * t.drive);
-    t.patrol = t.drive && Math.random() < t.driveChance && end > 4 ? t.drive : 0;
+    t.patrol = t.drive && !t.roofY && Math.random() < t.driveChance && end > 4 ? t.drive : 0;
     t.s = 0;
     t.sDir = 1;
     if (t.kind === 'tank') t.mesh.userData.turret.rotation.y = (Math.random() - 0.5) * 2;
@@ -202,8 +212,8 @@ export class Targets {
   placeGround(t) {
     const x = t.start.x + t.dirX * t.s;
     const z = t.start.z + t.dirZ * t.s;
-    const h = this.groundHeight(x, z);
-    t.mesh.position.set(x, h - 0.1, z);
+    const h = t.roofY ?? this.groundHeight(x, z);
+    t.mesh.position.set(x, h - (t.roofY ? 0 : 0.1), z);
     t.mesh.rotation.y = t.heading + (t.sDir < 0 ? Math.PI : 0);
     t.pos.set(x, h + t.center, z);
     const v = t.patrol ? t.speed * t.sDir : 0;

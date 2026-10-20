@@ -692,7 +692,7 @@ export function createWorld(scene, renderer) {
         // Axis-aligned box around the slightly turned building (and its roof).
         const ex = Math.abs(Math.cos(ang)) * sc.x / 2 + Math.abs(Math.sin(ang)) * sc.z / 2;
         const ez = Math.abs(Math.sin(ang)) * sc.x / 2 + Math.abs(Math.cos(ang)) * sc.z / 2;
-        const box = { min: [x - ex, h - 3, z - ez], max: [x + ex, h - 3 + sc.y * (house ? 1.35 : 1), z + ez] };
+        const box = { min: [x - ex, h - 3, z - ez], max: [x + ex, h - 3 + sc.y * (house ? 1.35 : 1), z + ez], flat: !house };
         buildings.push(box);
         for (let a = 0; a < 3; a++) {
           townBox.min[a] = Math.min(townBox.min[a], box.min[a]);
@@ -797,6 +797,7 @@ export function createWorld(scene, renderer) {
     town,
     buildingHit,
     insideBuilding,
+    rooftops: buildings.filter((b) => b.flat), // flat roofs soldiers can stand on
     sun,
     look,
     setLook,
