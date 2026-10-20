@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createWorld, WORLD } from './world.js';
 import { Jet, Explosion, COCKPIT_LAYER } from './jet.js';
 import { FlightModel, aimInputs, TUNING } from './flight.js';
-import { Controls, keyLabel } from './controls.js';
+import { Controls } from './controls.js';
 import { Hud } from './hud.js';
 import { createMenu } from './menu.js';
 import { createGraphics } from './graphics.js';
@@ -53,7 +53,7 @@ let spawnHeading = 0;
 }
 const OUT_OF_BOUNDS_TIME = 10;
 
-const state = { paused: true, cameraMode: 'chase', crashed: false, oob: 0, agl: 0, warnings: [] };
+const state = { flyMode: null, paused: true, cameraMode: 'chase', crashed: false, oob: 0, agl: 0, warnings: [] };
 const aim = { yaw: 0, pitch: 0, dir: new THREE.Vector3(0, 0, -1) };
 const auto = { pitch: 0, roll: 0, yaw: 0 };
 const cmd = { pitch: 0, roll: 0, yaw: 0, throttle: 0, boost: false };
@@ -97,6 +97,7 @@ function respawn() {
 
 function crash() {
   state.crashed = true;
+  controls.buzz(1, 1, 700);
   explosion.start(fm.position);
   jet.hide();
   gun.firing = false;
@@ -135,6 +136,11 @@ function step(dt) {
   if (shot.kills) fx.killAge = 0;
   sfx.gun(shot.shots);
   if (shot.hits) sfx.hit(shot.kills > 0);
+  // Controller rumble: gun chatter, hits, kills and the afterburner.
+  if (shot.shots) controls.buzz(0.08, 0.35, 70);
+  if (shot.hits) controls.buzz(0.3, 0.5, 90);
+  if (shot.kills) controls.buzz(0.75, 0.6, 250);
+  if (fm.boost && !state.crashed) controls.buzz(0.12, 0, 80);
   sfx.engine(fm.throttle, fm.boost, fm.kmh, !state.crashed);
 
   // Free look (hold): the mouse orbits the camera, releasing it swings back behind the jet.
@@ -142,6 +148,8 @@ function step(dt) {
   if (inp.freeLook) {
     look.yaw = clamp(look.yaw - inp.mouseDX * 0.003, -Math.PI, Math.PI);
     look.pitch = clamp(look.pitch - inp.mouseDY * 0.003, -1.2, 1.2);
+    look.yaw = clamp(look.yaw - inp.padLookX * dt * 2.6, -Math.PI, Math.PI);
+    look.pitch = clamp(look.pitch + inp.padLookY * dt * 1.8, -1.2, 1.2);
   } else {
     const k = Math.exp(-dt * 6);
     look.yaw *= k;
@@ -155,6 +163,9 @@ function step(dt) {
       const k = 0.0021 * c.sensAim;
       aim.yaw -= inp.mouseDX * k;
       aim.pitch = clamp(aim.pitch - inp.mouseDY * k * (c.invertY ? -1 : 1), -1.5, 1.5);
+      // Right stick moves the aim point at a steady rate (BF6 simplified controls on a pad).
+      aim.yaw -= inp.padRoll * 1.6 * dt;
+      aim.pitch = clamp(aim.pitch + inp.padPitch * 1.2 * dt, -1.5, 1.5);
       updateAimDir();
     }
     aimInputs(fm, aim.dir, auto);
@@ -229,39 +240,74 @@ function placeCamera(dt) {
   camera.updateProjectionMatrix();
 }
 
-// Pointer lock decides between flying and the menu.
+// Flying runs with the mouse locked, or unlocked when only a controller is used
+// (a gamepad button cannot request pointer lock, browsers want a click for that).
 const graphics = createGraphics({ renderer, scene, camera, world });
 graphics.setQuality(controls.config.quality);
 createTuner({ world, graphics });
 
 const menu = createMenu(document.getElementById('menu'), controls, {
-  onFly: requestFly,
+  onFly: () => requestFly(false),
   onQuality: (mode) => graphics.setQuality(mode),
 });
+const LOCK_FAILED = 'The browser did not lock the mouse. Click Fly again in a second.';
 
-function requestFly() {
+function setFlying(mode) {
+  state.flyMode = mode;
+  controls.locked = mode === 'lock';
+  controls.reset();
+  state.paused = !mode;
+  menu.show(!mode);
+  sfx.setEnabled(controls.config.sound);
+  if (mode) sfx.start();
+  else sfx.pause();
+  if (mode && controls.config.mouse === 'aim') syncAimToJet();
+}
+
+function requestFly(fromPad) {
   sfx.start();
+  if (fromPad) {
+    setFlying('pad');
+    return;
+  }
+  const fail = () => {
+    if (controls.gamepad) setFlying('pad');
+    else menu.setMessage(LOCK_FAILED);
+  };
   try {
     const p = canvas.requestPointerLock();
-    if (p && p.catch) p.catch(() => menu.setMessage('The browser did not lock the mouse. Click Fly again in a second.'));
+    if (p && p.catch) p.catch(fail);
   } catch {
-    menu.setMessage('The browser did not lock the mouse. Click Fly again in a second.');
+    fail();
   }
+}
+
+function stopFlying() {
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+  else setFlying(null);
 }
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
-  controls.locked = locked;
-  controls.reset();
-  state.paused = !locked;
-  menu.show(!locked);
-  sfx.setEnabled(controls.config.sound);
-  if (locked) sfx.start();
-  else sfx.pause();
-  if (locked && controls.config.mouse === 'aim') syncAimToJet();
+  if (locked) setFlying('lock');
+  else if (state.flyMode === 'lock') setFlying(null);
 });
 document.addEventListener('pointerlockerror', () => {
-  menu.setMessage('The browser did not lock the mouse. Click Fly again in a second.');
+  if (controls.gamepad) setFlying('pad');
+  else menu.setMessage(LOCK_FAILED);
+});
+// Esc does not unlock anything in controller flight, so handle it here.
+addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && state.flyMode === 'pad' && !controls.capture) setFlying(null);
+});
+addEventListener('gamepadconnected', () => {
+  controls.poll();
+  menu.refresh();
+});
+addEventListener('gamepaddisconnected', () => {
+  controls.poll();
+  menu.refresh();
+  if (state.flyMode === 'pad') setFlying(null);
 });
 
 addEventListener('resize', () => {
@@ -321,6 +367,12 @@ function frame() {
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.05);
   stats.begin(controls.config.showStats);
+  controls.poll();
+  if (controls.menuButton) {
+    controls.menuButton = false;
+    if (state.paused) requestFly(true);
+    else stopFlying();
+  }
   if (!state.paused && rawDt < 0.25) adaptResolution(rawDt);
   if (!state.paused) step(dt);
   placeCamera(dt);
@@ -346,7 +398,7 @@ function frame() {
     cameraMode: state.cameraMode,
     aimDir: controls.config.mouse === 'aim' ? aim.dir : null,
     presetName: controls.presetName(),
-    keyNames: { fire: keyLabel(controls.config.keys.fire[0]), camera: keyLabel(controls.config.keys.camera[0]), respawn: keyLabel(controls.config.keys.respawn[0]) },
+    keyNames: { fire: controls.actionLabel('fire'), camera: controls.actionLabel('camera'), respawn: controls.actionLabel('respawn'), menu: controls.menuLabel() },
   });
   stats.end(rawDt);
   controls.endFrame();
