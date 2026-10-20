@@ -62,7 +62,9 @@ function terrainHeightRaw(x, z) {
   const h = (base - 0.36) * 480 + ridge * ridge * ridge * 420 * mountains;
   const mask = 1 - smoothstep(0.6, 0.97, Math.hypot(x, z) / HALF);
   const out = h * mask + WORLD.seaFloor * (1 - mask);
-  return out - 2.5 * smoothstep(0, -2, out); // keep the seabed clear of the water surface
+  // The seabed drops 20 m just past the shoreline, so it is never close enough to the water
+  // surface for the two to fight over depth far away (that showed as flickering water).
+  return out - 20 * smoothstep(0, -1.5, out);
 }
 
 // Where forests grow. Used for both tree placement and the darker forest floor.

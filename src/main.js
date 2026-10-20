@@ -246,17 +246,30 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-// Lower the render resolution a step when frames are slow, raise it again when there is room.
-const perf = { time: 0, frames: 0 };
+// Lower the render resolution a step when frames are slow. Raise it again only after a long
+// fast stretch, and never straight after lowering it, so it does not bounce (that looked like flicker).
+const perf = { time: 0, frames: 0, fastWindows: 0, holdUntil: 0 };
 function adaptResolution(rawDt) {
   perf.time += rawDt;
   perf.frames++;
   if (perf.time < 2) return;
   const ms = (perf.time / perf.frames) * 1000;
   perf.time = perf.frames = 0;
+  const now = performance.now();
   let next = pixelRatio;
-  if (ms > 19) next = Math.max(1, pixelRatio - 0.25);
-  else if (ms < 13) next = Math.min(MAX_PIXEL_RATIO, pixelRatio + 0.25);
+  if (ms > 20) {
+    next = Math.max(1, pixelRatio - 0.25);
+    perf.fastWindows = 0;
+    perf.holdUntil = now + 30000;
+  } else if (ms < 10 && now > perf.holdUntil) {
+    perf.fastWindows++;
+    if (perf.fastWindows >= 3) {
+      next = Math.min(MAX_PIXEL_RATIO, pixelRatio + 0.25);
+      perf.fastWindows = 0;
+    }
+  } else {
+    perf.fastWindows = 0;
+  }
   if (next !== pixelRatio) {
     pixelRatio = next;
     renderer.setPixelRatio(pixelRatio);
