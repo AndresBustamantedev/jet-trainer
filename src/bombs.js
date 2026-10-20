@@ -8,12 +8,15 @@ export const BOMBS = {
   capacity: 4,
   reload: 5, // seconds per bomb
   interval: 0.35, // between drops while fire is held
-  radius: 28, // blast radius, m
-  damage: 120, // at the center: a tank takes two close hits, soldiers die anywhere in the blast
-  drag: 0.02,
+  radius: 36, // blast radius, m
+  damage: 200, // at the center: one direct hit kills a tank, soldiers die anywhere in the blast
+  drag: 0.01, // heavy bombs barely slow down
+  gravity: 1.6, // times real gravity: falls faster and steeper than real, for an arcade feel
+  push: 6, // m/s downward kick on release
+  blastSize: 3.3, // explosion size
 };
 
-const G = 9.81;
+const G = 9.81 * BOMBS.gravity;
 const _p0 = new THREE.Vector3();
 const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -76,7 +79,7 @@ export class Bombs {
     if (!mesh) return;
     const b = { mesh, p: new THREE.Vector3(), v: new THREE.Vector3() };
     this.release(fm, b.p, this.side);
-    b.v.copy(fm.velDir).multiplyScalar(fm.speed).addScaledVector(fm.up, -2);
+    b.v.copy(fm.velDir).multiplyScalar(fm.speed).addScaledVector(fm.up, -BOMBS.push);
     this.side = -this.side;
     mesh.visible = true;
     this.live.push(b);
@@ -140,7 +143,7 @@ export class Bombs {
   }
 
   explode(at) {
-    this.blasts[this.nextBlast++ % this.blasts.length].start(at, 2.2);
+    this.blasts[this.nextBlast++ % this.blasts.length].start(at, BOMBS.blastSize);
     let kills = 0;
     for (const t of this.targets.list) {
       if (!t.alive) continue;
@@ -154,7 +157,7 @@ export class Bombs {
   // Where a bomb released now would hit the ground, or null if it would not land within 40 s.
   predictImpact(fm, out) {
     this.release(fm, out, 0);
-    _v.copy(fm.velDir).multiplyScalar(fm.speed).addScaledVector(fm.up, -2);
+    _v.copy(fm.velDir).multiplyScalar(fm.speed).addScaledVector(fm.up, -BOMBS.push);
     const dt = 0.05;
     for (let t = 0; t < 40; t += dt) {
       Bombs.step(out, _v, dt);
