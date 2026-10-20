@@ -147,7 +147,7 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType, onUnit
               ${slider('padDeadzone', 'Stick deadzone', 0, 0.4, 0.01)}
               ${checkbox('padInvertY', 'Invert pitch', c.padInvertY)}
               ${checkbox('padToggle', 'Tap for afterburner and free look', c.padToggle)}
-              ${line('Vibration', `<button class="reset inline" data-rumble-test ${gp ? '' : 'disabled'}>Test</button><input type="checkbox" class="sr" id="rumble" ${c.rumble ? 'checked' : ''}><label class="box" for="rumble">${TICK}</label>`, 'rumble')}
+              ${line('Vibration', `<span class="rumble-res" data-rumble-res></span><button class="reset inline" data-rumble-test ${gp ? '' : 'disabled'}>Test</button><input type="checkbox" class="sr" id="rumble" ${c.rumble ? 'checked' : ''}><label class="box" for="rumble">${TICK}</label>`, 'rumble')}
               <p class="hint">BF6 layout: left stick throttle and yaw, L3 afterburner, right stick pitch and roll (pull back to climb), R2 fire, L2 zoom, R3 camera, D-pad down free look, Cross respawn, touchpad stats. Attack jet: Triangle switches weapon, D-pad left gun, D-pad right bombs.</p>
             </li>
             <li>
@@ -238,11 +238,12 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType, onUnit
       root.querySelector('.key.waiting')?.focus();
     }));
     root.querySelector('[data-rumble-test]').addEventListener('click', () => {
-      const was = c.rumble;
-      c.rumble = true;
-      controls.buzz(0.8, 0.8, 400);
-      controls.flushRumble(performance.now());
-      c.rumble = was;
+      const out = root.querySelector('[data-rumble-res]');
+      out.textContent = '';
+      controls.testRumble().then((res) => {
+        // 'complete' means the pad took it. Anything else is worth showing.
+        out.textContent = res === 'complete' ? 'ok' : String(res);
+      });
     });
     root.querySelectorAll('[data-pad]').forEach((b) => b.addEventListener('click', () => {
       const w = { action: b.dataset.pad, slot: 'pad' };

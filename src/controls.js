@@ -269,11 +269,15 @@ export class Controls {
     this.padLatch = { afterburner: false, freeLook: false };
     this.menuButton = false;
     this.lastDevice = 'kbm';
-    this.rumbleState = { s: 0, w: 0, ms: 0, sentAt: 0, until: 0, level: 0 };
+    // Pending request (s, w, ms, expires) and the effect running on the pad (until, level).
+    this.rumbleState = { s: 0, w: 0, ms: 0, expires: 0, sentAt: 0, until: 0, level: 0 };
+    this.rumbleResult = ''; // last answer from the pad, shown next to the Test button
 
     addEventListener('keydown', (e) => this.onKey(e, true));
     addEventListener('keyup', (e) => this.onKey(e, false));
     addEventListener('blur', () => this.reset());
+    // A hidden tab cannot rumble. Start clean when it comes back.
+    document.addEventListener('visibilitychange', () => this.stopRumble());
     const onButton = (e, isDown) => {
       let code = `Mouse${e.button}`;
       // macOS turns Ctrl+click into a right click. Ctrl is pitch down in some presets,
@@ -423,44 +427,81 @@ export class Controls {
     this.flushRumble(now);
   }
 
-  // Queue a rumble for this frame. The strongest request wins, sent at most every 50 ms.
+  // Ask for a rumble. Requests in the same frame merge (strongest wins) and wait
+  // until the pad can take them, so a short event is never lost.
   buzz(strong, weak, ms) {
     if (!this.config.rumble) return;
     const r = this.rumbleState;
     r.s = Math.max(r.s, strong);
     r.w = Math.max(r.w, weak);
     r.ms = Math.max(r.ms, ms);
+    r.expires = Math.max(r.expires, performance.now() + ms);
   }
 
+  // Send the pending request when it is due. Each playEffect replaces the running
+  // effect, so: stronger requests go at once, equal ones top the effect up shortly
+  // before it ends, weaker ones wait for it to finish. Continuous rumble (gun,
+  // afterburner) then costs a few commands a second instead of one per frame,
+  // which some pads drop over Bluetooth.
   flushRumble(now) {
     const r = this.rumbleState;
-    const act = this.gamepad && this.gamepad.vibrationActuator;
     if (!r.s && !r.w) return;
-    const level = Math.max(r.s, r.w);
-    // A new effect replaces the running one, so a weak pulse must not cut a strong one short.
-    const blocked = now < r.until && level < r.level;
-    if (act && !blocked && now - r.sentAt >= 50) {
-      const duration = Math.max(r.ms, 70);
-      try {
-        const p = act.playEffect('dual-rumble', { startDelay: 0, duration, strongMagnitude: Math.min(1, r.s), weakMagnitude: Math.min(1, r.w) });
-        if (p && p.catch) p.catch(() => {});
-      } catch { /* no rumble support */ }
-      r.sentAt = now;
-      r.until = now + duration;
-      r.level = level;
+    const clear = () => { r.s = r.w = r.ms = r.expires = 0; };
+    const act = this.gamepad && this.gamepad.vibrationActuator;
+    if (!act || !act.playEffect) {
+      clear();
+      return;
     }
-    r.s = r.w = r.ms = 0;
+    const level = Math.max(r.s, r.w);
+    const left = r.until - now;
+    const due = left <= 0 || level > r.level + 0.01 || (level >= r.level - 0.01 && left < 60);
+    if (!due || now - r.sentAt < 30) {
+      if (now > r.expires) clear();
+      return;
+    }
+    const duration = Math.max(r.ms, 200);
+    r.sentAt = now;
+    r.until = now + duration;
+    r.level = level;
+    try {
+      const p = act.playEffect('dual-rumble', { startDelay: 0, duration, strongMagnitude: Math.min(1, r.s), weakMagnitude: Math.min(1, r.w) });
+      if (p && p.then) {
+        p.then((res) => { this.rumbleResult = res; }, (err) => {
+          // Rejected (tab in the background, pad busy): forget it so the next request is sent.
+          this.rumbleResult = (err && err.name) || 'error';
+          r.until = 0;
+        });
+      }
+    } catch (err) {
+      this.rumbleResult = (err && err.name) || 'error';
+      r.until = 0;
+    }
+    clear();
   }
 
   stopRumble() {
     const act = this.gamepad && this.gamepad.vibrationActuator;
-    this.rumbleState.until = 0;
+    const r = this.rumbleState;
+    r.s = r.w = r.ms = r.expires = r.until = r.level = 0;
     try {
       if (act && act.reset) {
         const p = act.reset();
         if (p && p.catch) p.catch(() => {});
       }
     } catch { /* ignore */ }
+  }
+
+  // Strong test pulse for the menu. Resolves to what the pad answered.
+  testRumble() {
+    const act = this.gamepad && this.gamepad.vibrationActuator;
+    if (!act || !act.playEffect) return Promise.resolve('not supported by this browser');
+    this.stopRumble();
+    try {
+      return act.playEffect('dual-rumble', { startDelay: 0, duration: 400, strongMagnitude: 0.8, weakMagnitude: 0.8 })
+        .then((res) => (this.rumbleResult = res), (err) => (this.rumbleResult = (err && err.name) || 'error'));
+    } catch (err) {
+      return Promise.resolve((this.rumbleResult = (err && err.name) || 'error'));
+    }
   }
 
   // Label for the first binding of an action, on whichever device was used last.
