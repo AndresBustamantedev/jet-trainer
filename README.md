@@ -29,6 +29,7 @@ GitHub Pages serves `main` from the repo root (`.nojekyll` skips Jekyll). The po
 - `src/weapons.js`: nose cannon. Rate, damage, bullet speed and overheat are in `GUN` at the top.
 - `src/targets.js`: orange drones flying circles and weaves, tanks (some driving) and AA guns that track the jet. All respawn after a kill.
 - `src/audio.js`: procedural gun, hit, explosion and engine sounds (no audio files).
+- `src/stats.js`: performance overlay (P): fps, frame, page CPU and GPU time, JS memory, draw calls and GPU object counts.
 
 ## Control presets
 

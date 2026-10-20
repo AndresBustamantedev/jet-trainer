@@ -8,6 +8,7 @@ import { createMenu } from './menu.js';
 import { Targets } from './targets.js';
 import { Gun } from './weapons.js';
 import { Sfx } from './audio.js';
+import { Stats } from './stats.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -32,6 +33,7 @@ const hud = new Hud(document.getElementById('hud'));
 const targets = new Targets(scene, world);
 const gun = new Gun(scene, world.groundHeight);
 const sfx = new Sfx();
+const stats = new Stats(renderer);
 const score = { shots: 0, hits: 0, kills: 0 };
 const fx = { hitAge: 9, killAge: 9 };
 const gunPoint = new THREE.Vector3();
@@ -100,6 +102,10 @@ function pullUpWarning() {
 
 function step(dt) {
   const inp = controls.sample(dt);
+  if (controls.tapped('stats')) {
+    controls.config.showStats = !controls.config.showStats;
+    controls.save();
+  }
   if (controls.tapped('camera')) state.cameraMode = state.cameraMode === 'chase' ? 'cockpit' : 'chase';
   if (controls.tapped('respawn')) {
     respawn();
@@ -262,6 +268,7 @@ const clock = new THREE.Clock();
 function frame() {
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.05);
+  stats.begin(controls.config.showStats);
   if (!state.paused && rawDt < 0.25) adaptResolution(rawDt);
   if (!state.paused) step(dt);
   placeCamera(dt);
@@ -274,6 +281,7 @@ function frame() {
     targetList: targets.list,
     gun,
     score,
+    stats: controls.config.showStats ? stats.out : null,
     hitAge: fx.hitAge,
     killAge: fx.killAge,
     fm,
@@ -287,6 +295,7 @@ function frame() {
     presetName: controls.presetName(),
     keyNames: { fire: keyLabel(controls.config.keys.fire[0]), camera: keyLabel(controls.config.keys.camera[0]), respawn: keyLabel(controls.config.keys.respawn[0]) },
   });
+  stats.end(rawDt);
   controls.endFrame();
   requestAnimationFrame(frame);
 }

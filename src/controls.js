@@ -18,6 +18,7 @@ export const ACTIONS = [
   ['freeLook', 'Free look (hold)'],
   ['camera', 'Switch camera'],
   ['respawn', 'Respawn'],
+  ['stats', 'Show performance stats'],
 ];
 
 // Same in every preset. Fire, zoom, free look and camera follow EA's BF6 defaults.
@@ -31,6 +32,7 @@ const SHARED_KEYS = {
   freeLook: ['KeyV', null],
   camera: ['KeyC', null],
   respawn: ['Enter', null],
+  stats: ['KeyP', null],
 };
 
 const COMMUNITY_KEYS = {
@@ -124,6 +126,7 @@ function presetConfig(id, base = {}) {
     sensX: base.sensX ?? 1,
     sensAim: base.sensAim ?? 1,
     sound: base.sound ?? true,
+    showStats: base.showStats ?? false,
     keys,
   };
 }

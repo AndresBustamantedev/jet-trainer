@@ -78,6 +78,7 @@ export class Hud {
       this.gunHud(s);
     }
     this.score(s);
+    if (s.stats) this.statsPanel(s.stats);
     this.speedTape(s);
     this.altTape(s);
     this.headingTape(s);
@@ -235,6 +236,32 @@ export class Hud {
       }
       ctx.restore();
     }
+  }
+
+  statsPanel(st) {
+    const { ctx } = this;
+    const mb = (v) => (v == null ? 'n/a' : `${Math.round(v)} MB`);
+    const lines = [
+      [`${Math.round(st.fps)} fps`, `frame ${st.frameMs.toFixed(1)} ms, worst ${st.worstMs.toFixed(1)} ms`],
+      ['CPU (page)', `${st.cpuMs.toFixed(1)} ms per frame`],
+      ['GPU', st.gpuMs == null ? 'timing not available here' : `${st.gpuMs.toFixed(1)} ms per frame`],
+      ['JS memory', st.heapMb == null ? 'n/a in this browser' : `${mb(st.heapMb)} of ${mb(st.heapLimitMb)}`],
+      ['Draw calls', `${st.calls ?? 0}, ${((st.triangles ?? 0) / 1e6).toFixed(2)} M triangles`],
+      ['GPU objects', `${st.geometries ?? 0} meshes, ${st.textures ?? 0} textures, ${st.programs ?? 0} shaders`],
+      ['Resolution', `${(st.pixelRatio ?? 1).toFixed(2)}x`],
+    ];
+    const x = this.w - 28;
+    const top = 74;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(6, 14, 12, 0.6)';
+    ctx.fillRect(x - 300, top, 300 + 10, lines.length * 19 + 12);
+    lines.forEach(([label, value], i) => {
+      const y = top + 16 + i * 19;
+      this.text(label, x - 292, y, { size: 13, weight: 600 });
+      this.text(value, x, y, { size: 13, align: 'right' });
+    });
+    ctx.restore();
   }
 
   score(s) {
