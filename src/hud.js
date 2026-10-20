@@ -281,7 +281,7 @@ export class Hud {
     const [x, y] = g;
     if (s.bombs && s.bombs.selected) {
       // No gun reticle with bombs selected; the bomb circle is drawn over the world instead.
-      if (s.killAge < 1.6) this.text('Target destroyed', x, y + 46, { size: 16, weight: 700, align: 'center', color: DANGER });
+      if (s.killAge < 1.6) this.text(s.killText || 'Target destroyed', x, y + 46, { size: 16, weight: 700, align: 'center', color: DANGER });
       return;
     }
     ctx.beginPath();
@@ -308,7 +308,7 @@ export class Hud {
       }
       ctx.restore();
     }
-    if (s.killAge < 1.6) this.text('Target destroyed', x, y + 46, { size: 16, weight: 700, align: 'center', color: DANGER });
+    if (s.killAge < 1.6) this.text(s.killText || 'Target destroyed', x, y + 46, { size: 16, weight: 700, align: 'center', color: DANGER });
 
     if (s.gun.heat > 0.01) {
       const bw = 80;

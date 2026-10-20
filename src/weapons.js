@@ -91,7 +91,7 @@ export class Gun {
 
   // Returns what happened this frame so the HUD and sound can react.
   update(dt, fm, trigger, targets) {
-    const out = { shots: 0, hits: 0, kills: 0 };
+    const out = { shots: 0, hits: 0, kills: 0, killed: [] };
     this.cooldown -= dt;
     this.firing = trigger && !this.overheated;
     if (this.firing) {
@@ -127,7 +127,10 @@ export class Gun {
       const hit = targets.hitTest(_p0, b.p);
       if (hit) {
         out.hits++;
-        if (targets.damage(hit, GUN.damage)) out.kills++;
+        if (targets.damage(hit, GUN.damage)) {
+          out.kills++;
+          out.killed.push(hit.kind);
+        }
         continue;
       }
       if (this.buildingHit(_p0, b.p, this.wallHit)) {

@@ -50,7 +50,25 @@ function setJetType(type) {
 const sfx = new Sfx();
 const stats = new Stats(renderer);
 const score = { shots: 0, hits: 0, kills: 0 };
-const fx = { hitAge: 9, killAge: 9 };
+const fx = { hitAge: 9, killAge: 9, killed: {} };
+const KILL_NAMES = { air: 'drone', tank: 'tank', aa: 'AA gun', cannon: 'field gun', soldier: 'soldier' };
+// Count what was destroyed. Kills within the 1.6 s the message shows add up, so a bomb run reads
+// as one line ("3 soldiers, 1 tank destroyed").
+function noteKills(kinds) {
+  if (!kinds.length) return;
+  if (fx.killAge >= 1.6) fx.killed = {};
+  for (const k of kinds) fx.killed[k] = (fx.killed[k] || 0) + 1;
+  fx.killAge = 0;
+}
+function killText() {
+  const parts = Object.entries(fx.killed).map(([k, n]) => `${n} ${KILL_NAMES[k] || k}${n > 1 ? 's' : ''}`);
+  if (!parts.length) return '';
+  if (parts.length === 1 && parts[0].startsWith('1 ')) {
+    const name = parts[0].slice(2);
+    return `${name[0].toUpperCase()}${name.slice(1)} destroyed`;
+  }
+  return `${parts.join(', ')} destroyed`;
+}
 const gunPoint = new THREE.Vector3();
 
 // Spawn about 1.6 km from the town, where the tanks and AA are, flying toward it.
@@ -151,7 +169,8 @@ function step(dt) {
   const bombRun = bombs.update(dt, fm, trigger && weapon === 'bombs');
   jet.setBombCount(bombs.ammo);
   score.kills += bombRun.kills;
-  if (bombRun.kills) fx.killAge = 0;
+  noteKills(bombRun.killed);
+  if (bombRun.kills) sfx.kills(bombRun.killed);
   if (bombRun.drops) sfx.drop();
   if (bombRun.booms) {
     sfx.boom();
@@ -161,7 +180,7 @@ function step(dt) {
   score.hits += shot.hits;
   score.kills += shot.kills;
   if (shot.hits) fx.hitAge = 0;
-  if (shot.kills) fx.killAge = 0;
+  noteKills(shot.killed);
   sfx.gun(shot.shots);
   if (shot.hits) sfx.hit(shot.kills > 0);
   // Controller rumble: gun chatter, hits, kills and the afterburner.
@@ -447,6 +466,7 @@ function frame() {
     toast: performance.now() < toast.until ? toast.text : '',
     hitAge: fx.hitAge,
     killAge: fx.killAge,
+    killText: killText(),
     fm,
     camera,
     cmd,

@@ -86,6 +86,27 @@ export class Sfx {
     if (kill) this.burst(1.6, 320, 0.8);
   }
 
+  // One short tone per bomb kill, a beat apart so you can count them: a high tick for a soldier,
+  // a lower, longer one for a vehicle or drone.
+  kills(kinds) {
+    const ctx = this.ctx;
+    if (!ctx || !this.enabled) return;
+    kinds.slice(0, 16).forEach((kind, i) => {
+      const soldier = kind === 'soldier';
+      const t = ctx.currentTime + i * 0.09;
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = soldier ? 1500 : 760;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.setValueAtTime(soldier ? 0.06 : 0.09, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + (soldier ? 0.07 : 0.2));
+      o.connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + 0.25);
+    });
+  }
+
   drop() {
     this.burst(0.4, 420, 0.3);
   }

@@ -99,7 +99,7 @@ export class Bombs {
 
   // Returns what happened this frame for score and sound.
   update(dt, fm, trigger) {
-    const out = { drops: 0, kills: 0, booms: 0 };
+    const out = { drops: 0, kills: 0, booms: 0, killed: [] };
     if (this.ammo < BOMBS.capacity) {
       this.reloadT += dt;
       if (this.reloadT >= BOMBS.reload) {
@@ -129,7 +129,7 @@ export class Bombs {
         at = b.p;
       }
       if (at) {
-        out.kills += this.explode(at);
+        out.kills += this.explode(at, out.killed);
         out.booms++;
         b.mesh.visible = false;
         continue;
@@ -142,14 +142,18 @@ export class Bombs {
     return out;
   }
 
-  explode(at) {
+  // Adds the kind of each target it destroys to killed.
+  explode(at, killed) {
     this.blasts[this.nextBlast++ % this.blasts.length].start(at, BOMBS.blastSize);
     let kills = 0;
     for (const t of this.targets.list) {
       if (!t.alive) continue;
       const d = t.pos.distanceTo(at);
       if (d >= BOMBS.radius) continue;
-      if (this.targets.damage(t, BOMBS.damage * Math.pow(1 - d / BOMBS.radius, 0.6))) kills++;
+      if (this.targets.damage(t, BOMBS.damage * Math.pow(1 - d / BOMBS.radius, 0.6))) {
+        kills++;
+        killed.push(t.kind);
+      }
     }
     return kills;
   }
