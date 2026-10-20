@@ -512,7 +512,7 @@ export class Hud {
     if (this.L.glass) {
       // Flight numbers are on the glass in cockpit view; keep only the top-left lines.
       this.text(s.presetName, 28, 30, { size: 17, weight: 700, color: INK });
-      this.text(`${s.keyNames.fire} fire     Esc settings     ${s.keyNames.camera} camera     ${s.keyNames.respawn} respawn`, 28, 52, { size: 13, color: INK });
+      this.text(`${s.keyNames.fire} fire     ${s.keyNames.menu} settings     ${s.keyNames.camera} camera     ${s.keyNames.respawn} respawn`, 28, 52, { size: 13, color: INK });
       return;
     }
     const thr = fm.boost ? 'Afterburner' : fm.throttle > 0 ? 'Throttle up' : fm.throttle < 0 ? 'Air brake' : 'Cruise';
@@ -528,7 +528,7 @@ export class Hud {
     this.text(`Weapon: ${wpn}${s.bombs ? '   (1 gun, 2 bombs)' : ''}`, x, y - 96, { size: 14, weight: 700 });
 
     this.text(s.presetName, 28, 30, { size: 17, weight: 700 });
-    this.text(`${s.keyNames.fire} fire     Esc settings     ${s.keyNames.camera} camera     ${s.keyNames.respawn} respawn`, 28, 52, { size: 13 });
+    this.text(`${s.keyNames.fire} fire     ${s.keyNames.menu} settings     ${s.keyNames.camera} camera     ${s.keyNames.respawn} respawn`, 28, 52, { size: 13 });
   }
 
   inputs(s) {
