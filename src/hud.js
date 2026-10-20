@@ -94,7 +94,7 @@ export class Hud {
     this.L = {
       cx: (minX + maxX) / 2,
       cy: minY + gh * 0.5,
-      tapeOff: gw * 0.36,
+      tapeOff: gw * 0.3,
       tapeH: Math.min(320, gh * 0.55),
       // Heading strip near the bottom of the glass, like a real HUD.
       headY: maxY - gh * 0.24,
@@ -351,13 +351,14 @@ export class Hud {
 
   valueBox(x, y, w, str, color, align) {
     const { ctx } = this;
-    w *= this.k;
-    ctx.fillStyle = 'rgba(6, 18, 14, 0.55)';
-    ctx.fillRect(x, y - 15, w, 30);
+    const k = this.k;
+    w *= k;
+    ctx.fillStyle = this.L.glass ? 'rgba(6, 18, 14, 0.3)' : 'rgba(6, 18, 14, 0.55)';
+    ctx.fillRect(x, y - 15 * k, w, 30 * k);
     ctx.strokeStyle = color;
-    ctx.strokeRect(x, y - 15, w, 30);
+    ctx.strokeRect(x, y - 15 * k, w, 30 * k);
     ctx.strokeStyle = this.ink;
-    this.text(str, align === 'right' ? x + w - 8 : x + 8, y + 1, { size: 19, weight: 700, align, color });
+    this.text(str, align === 'right' ? x + w - 8 * k : x + 8 * k, y + 1, { size: 19, weight: 700, align, color });
   }
 
   speedTape(s) {
@@ -386,9 +387,9 @@ export class Hud {
     }
     ctx.restore();
     const best = kmh >= T.sweetLowKmh && kmh <= T.sweetHighKmh;
-    this.valueBox(x - 88, cy, 70, String(Math.round(kmh)), best ? this.best : this.ink, 'right');
-    this.text('km/h', x - 26, cy + 28, { size: 12, align: 'right' });
-    this.text('Best turn', x + 12, yOf(T.sweetLowKmh) - 4, { size: 12, color: this.best, base: 'bottom' });
+    this.valueBox(x - 88 * this.k, cy, 70, String(Math.round(kmh)), best ? this.best : this.ink, 'right');
+    this.text('km/h', x - 26 * this.k, cy + 28 * this.k, { size: 12, align: 'right' });
+    if (!this.L.glass) this.text('Best turn', x + 12, yOf(T.sweetLowKmh) - 4, { size: 12, color: this.best, base: 'bottom' });
   }
 
   altTape(s) {
@@ -411,8 +412,8 @@ export class Hud {
     }
     ctx.restore();
     const low = s.agl < 60;
-    this.valueBox(x + 18, cy, 70, String(Math.round(alt)), alt > TUNING.ceiling ? WARN : this.ink, 'left');
-    this.text('m', x + 26, cy + 28, { size: 12 });
+    this.valueBox(x + 18 * this.k, cy, 70, String(Math.round(alt)), alt > TUNING.ceiling ? WARN : this.ink, 'left');
+    this.text('m', x + 26 * this.k, cy + 28 * this.k, { size: 12 });
     if (!this.L.glass) this.text(`Above ground ${Math.max(0, Math.round(s.agl))}`, x + 18, cy + H / 2 + 14, { size: 13, color: low ? WARN : this.ink });
   }
 

@@ -360,11 +360,12 @@ function buildCockpit() {
 
   // HUD glass: a faint pane with a thin frame and a curved top. The HUD is drawn only inside it.
   const outline = new THREE.Shape();
-  outline.moveTo(-0.23, -0.17);
-  outline.lineTo(0.23, -0.17);
+  // Top stays put; the glass reaches further down.
+  outline.moveTo(-0.23, -0.27);
+  outline.lineTo(0.23, -0.27);
   outline.lineTo(0.23, 0.09);
   outline.quadraticCurveTo(0, 0.21, -0.23, 0.09);
-  outline.lineTo(-0.23, -0.17);
+  outline.lineTo(-0.23, -0.27);
   const pts = outline.getPoints(16);
   const glassGroup = new THREE.Group();
   // Centered a little above eye level, so the gun reticle sits mid-glass with room above.
