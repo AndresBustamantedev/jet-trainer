@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createWorld, WORLD } from './world.js';
-import { Jet, Explosion } from './jet.js';
+import { Jet, Explosion, COCKPIT_LAYER } from './jet.js';
 import { FlightModel, aimInputs, TUNING } from './flight.js';
 import { Controls, keyLabel } from './controls.js';
 import { Hud } from './hud.js';
@@ -194,7 +194,13 @@ function step(dt) {
   if (state.oob > 0) w.push([`Return to the combat area  ${Math.ceil(OUT_OF_BOUNDS_TIME - state.oob)}`, 'warn']);
 }
 
+// The cockpit camera hides the pilot, seat and canopy so they don't block the view.
+// They still cast shadows, and the chase camera still shows them.
+world.sun.shadow.camera.layers.enable(COCKPIT_LAYER);
+
 function placeCamera(dt) {
+  camera.layers.set(0);
+  if (state.cameraMode !== 'cockpit') camera.layers.enable(COCKPIT_LAYER);
   const aimMode = controls.config.mouse === 'aim';
   if (state.crashed) {
     camera.lookAt(explosion.group.position);

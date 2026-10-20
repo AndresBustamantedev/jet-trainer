@@ -2,6 +2,8 @@
 // Nose is -Z, up is +Y, right is +X. About 18 m long, 13.6 m span.
 import * as THREE from 'three';
 
+export const COCKPIT_LAYER = 1;
+
 // Two-tone grey camo and panel lines, computed from object-space position so no UVs are needed.
 function camoPaint() {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.25, roughness: 0.52, envMapIntensity: 0.7 });
@@ -229,7 +231,8 @@ function flameMat(color, opacity, boost = 2) {
 function buildModel() {
   const g = new THREE.Group();
   g.add(new THREE.Mesh(FUSELAGE, PAINT));
-  g.add(new THREE.Mesh(CANOPY, GLASS));
+  const canopy = new THREE.Mesh(CANOPY, GLASS);
+  g.add(canopy);
 
   const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), PILOT);
   helmet.position.set(0, 0.86, -4.75);
@@ -237,6 +240,8 @@ function buildModel() {
   const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 0.2), DARK);
   seat.position.set(0, 0.7, -4.45);
   g.add(seat);
+  // Cockpit parts live on their own layer so the cockpit camera can skip them.
+  for (const part of [canopy, helmet, seat]) part.layers.set(COCKPIT_LAYER);
 
   const sides = [buildSide(-1), buildSide(1)];
   for (const s of sides) g.add(s.group);
