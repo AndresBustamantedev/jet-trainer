@@ -9,10 +9,26 @@ const TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.8c2.1
 
 const NOTES = { mouseYaw: 'Recommended' };
 
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const canFullscreen = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+function setFullscreen(on) {
+  const el = document.documentElement;
+  if (on) (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.catch?.(() => {});
+  else (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+}
+
 export function createMenu(root, controls, { onFly, onQuality }) {
   let waiting = null; // { action, slot } while rebinding
   let message = '';
   let leaveTimer = 0;
+
+  // Keep the checkbox right when full screen ends another way (Esc, the browser's own button).
+  const syncFullscreen = () => {
+    const box = root.querySelector('#fullscreen');
+    if (box) box.checked = isFullscreen();
+  };
+  document.addEventListener('fullscreenchange', syncFullscreen);
+  document.addEventListener('webkitfullscreenchange', syncFullscreen);
 
   root.addEventListener('click', (e) => {
     if (e.target === root) fly();
@@ -95,6 +111,7 @@ export function createMenu(root, controls, { onFly, onQuality }) {
               <h2>Graphics and sound</h2>
               ${line('Graphics', [['performance', 'Performance'], ['high', 'High']].map(([v, label]) => `<button class="pick" data-quality="${v}" aria-pressed="${c.quality === v}">${label}</button>`).join(''))}
               ${checkbox('sound', 'Sound', c.sound)}
+              ${canFullscreen ? checkbox('fullscreen', 'Full screen', isFullscreen()) : ''}
             </li>
           </ol>
           <footer>Fan made, not affiliated with EA or DICE. <a href="https://github.com/adarkeser/jet-trainer" target="_blank" rel="noopener">Source on GitHub</a></footer>
@@ -130,6 +147,7 @@ export function createMenu(root, controls, { onFly, onQuality }) {
       onQuality(c.quality);
       render();
     }));
+    root.querySelector('#fullscreen')?.addEventListener('change', (e) => setFullscreen(e.target.checked));
     for (const id of ['invertY', 'sound']) {
       root.querySelector(`#${id}`).addEventListener('change', (e) => {
         c[id] = e.target.checked;
