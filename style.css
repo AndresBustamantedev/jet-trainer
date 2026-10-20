@@ -236,6 +236,7 @@ input[type=range]::-moz-range-thumb {
 /* Controller column: set apart from the two key slots */
 .key.pad { margin-left: 6px; padding-left: 10px; border-left: 1.5px solid var(--rule); border-radius: 0; min-width: 62px; text-align: right; }
 .key.pad.waiting { border-left-color: var(--tag); }
+.keys-pad .key.pad { margin-left: 0; padding-left: 6px; border-left: 0; border-radius: 2px; min-width: 0; text-align: left; }
 .pad-status { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: var(--ink-soft); }
 .pad-status.on { color: var(--ink); }
 .pad-status.on::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2f8a50; margin-right: 7px; vertical-align: 1px; }

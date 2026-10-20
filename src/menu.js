@@ -23,6 +23,7 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
   let message = '';
   let leaveTimer = 0;
   let visible = false;
+  let keyView = null; // 'keys' or 'pad' once picked; until then it follows whether a controller is connected
 
   // Keep the checkbox right when full screen ends another way (Esc, the browser's own button).
   const syncFullscreen = () => {
@@ -88,6 +89,7 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
       ? `<p class="pad-status on"><b>${padName}</b> connected. Press ${menuBtn} to fly, and again to come back here.</p>
         ${gp.mapping !== 'standard' ? '<p class="hint">This browser does not report a standard layout for this controller, so the defaults may be wrong. Chrome and Edge read the DualSense correctly, or rebind the inputs below.</p>' : ''}`
       : '<p class="pad-status">No controller found. Connect a DualSense (or any gamepad) by USB or Bluetooth and press a button on it.</p>';
+    const view = keyView || (gp ? 'pad' : 'keys');
     const usesCtrl = Object.values(c.keys).some((k) => k.some((code) => code && code.startsWith('Control')));
 
     // Rebinding redraws the card, so keep its scroll position.
@@ -150,10 +152,15 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
             </li>
             <li>
               <h2>Check your keys</h2>
-              ${ACTIONS.map(([action, label]) => line(label, keyButton(action, 0) + keyButton(action, 1) + padButton(action))).join('')}
-              <p class="hint">Click a key, then press the new key or mouse button. Backspace clears it, Esc cancels. The last column is the controller: click it, then press a button or trigger or push a stick; ${menuBtn} cancels.${usesCtrl && !IS_MAC ? ' On Windows, Ctrl can trigger browser shortcuts like Ctrl+W.' : ''}</p>
-              <button class="reset" data-reset>Reset keys to ${PRESETS[c.preset].name}</button>
-              <button class="reset" data-pad-reset>Reset controller</button>
+              ${line('Show', [['keys', 'Keyboard and mouse'], ['pad', 'Controller']].map(([v, label]) => `<button class="pick" data-keyview="${v}" aria-pressed="${view === v}">${label}</button>`).join(''))}
+              <div class="keys-${view}">
+                ${ACTIONS.map(([action, label]) => line(label, view === 'pad' ? padButton(action) : keyButton(action, 0) + keyButton(action, 1))).join('')}
+              </div>
+              ${view === 'pad' ? `
+                <p class="hint">Click an input, then press a button or trigger or push a stick. ${menuBtn} cancels, Backspace clears it.</p>
+                <button class="reset" data-pad-reset>Reset controller</button>` : `
+                <p class="hint">Click a key, then press the new key or mouse button. Backspace clears it, Esc cancels.${usesCtrl && !IS_MAC ? ' On Windows, Ctrl can trigger browser shortcuts like Ctrl+W.' : ''}</p>
+                <button class="reset" data-reset>Reset keys to ${PRESETS[c.preset].name}</button>`}
             </li>
             <li>
               <h2>Graphics and sound</h2>
@@ -246,12 +253,17 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
       render();
       root.querySelector('.key.waiting')?.focus();
     }));
-    root.querySelector('[data-pad-reset]').addEventListener('click', () => {
+    root.querySelectorAll('[data-keyview]').forEach((b) => b.addEventListener('click', () => {
+      stopWaiting();
+      keyView = b.dataset.keyview;
+      render();
+    }));
+    root.querySelector('[data-pad-reset]')?.addEventListener('click', () => {
       stopWaiting();
       controls.resetPad();
       render();
     });
-    root.querySelector('[data-reset]').addEventListener('click', () => {
+    root.querySelector('[data-reset]')?.addEventListener('click', () => {
       stopWaiting();
       controls.applyPreset(c.preset);
       render();
