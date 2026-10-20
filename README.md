@@ -14,10 +14,6 @@ python3 -m http.server 8137
 
 Open http://127.0.0.1:8137. ES modules do not load from `file://`, so a server is needed.
 
-## Hosting
-
-GitHub Pages serves `main` from the repo root (`.nojekyll` skips Jekyll). The portfolio's `vercel.json` forwards `adarkeser.com/jet/` to `https://adarkeser.github.io/jet-trainer/`, so every merge to `main` goes live in a few minutes.
-
 ## Files
 
 - `src/flight.js`: arcade flight model. Every feel number is in `TUNING` at the top (speeds, best turn band, turn rates, ceiling). They are guesses, not measured from BF6.
