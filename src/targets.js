@@ -11,9 +11,9 @@ const SOLDIERS = 24;
 // center: hitbox height above the ground. drive: patrol length in m, taken by driveChance of them.
 const KINDS = {
   air: { radius: 5.5, health: 100, respawn: 5 },
-  tank: { radius: 6, health: 150, respawn: 8, center: 2.4, speed: 7, drive: 220, driveChance: 0.5 },
-  aa: { radius: 5.5, health: 90, respawn: 8, center: 2.9, speed: 0, drive: 0, driveChance: 0 },
-  soldier: { radius: 1.2, health: 9, respawn: 10, center: 0.9, speed: 1.4, drive: 30, driveChance: 0.5 },
+  tank: { radius: 8, health: 150, respawn: 8, center: 3.2, speed: 7, drive: 220, driveChance: 0.5 },
+  aa: { radius: 7, health: 90, respawn: 8, center: 3.6, speed: 0, drive: 0, driveChance: 0 },
+  soldier: { radius: 1.8, health: 9, respawn: 10, center: 1.35, speed: 1.6, drive: 30, driveChance: 0.5 },
 };
 
 const _a = new THREE.Vector3();
@@ -72,7 +72,7 @@ function tankModel() {
   g.add(turret);
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   g.userData.turret = turret;
-  g.scale.setScalar(1.5); // about 10 m long, like a real main battle tank
+  g.scale.setScalar(2); // about 13 m long: bigger than real so it reads from the air
   return g;
 }
 
@@ -100,26 +100,27 @@ function aaModel() {
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   g.userData.mount = mount;
   g.userData.pivot = pivot;
-  g.scale.setScalar(1.6);
+  g.scale.setScalar(2);
   return g;
 }
 
-// A 1.8 m soldier in one mesh: legs, body, arms, head, helmet and a rifle.
+// A soldier in one mesh: legs, body, arms, head, helmet and a rifle. Drawn 1.5 times real size
+// in tan, so they stand out against the grass from a jet.
 let soldierGeo = null;
 const soldierMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 function soldierModel() {
   if (!soldierGeo) {
-    const olive = '#4f5638';
+    const tan = '#c2a878';
     soldierGeo = coloredMerge([
-      [new THREE.BoxGeometry(0.16, 0.85, 0.22).translate(-0.11, 0.42, 0), '#3c412c'],
-      [new THREE.BoxGeometry(0.16, 0.85, 0.22).translate(0.11, 0.42, 0), '#3c412c'],
-      [new THREE.BoxGeometry(0.5, 0.62, 0.3).translate(0, 1.17, 0), olive],
-      [new THREE.BoxGeometry(0.12, 0.55, 0.14).translate(-0.31, 1.15, -0.08), olive],
-      [new THREE.BoxGeometry(0.12, 0.55, 0.14).translate(0.31, 1.15, -0.08), olive],
+      [new THREE.BoxGeometry(0.16, 0.85, 0.22).translate(-0.11, 0.42, 0), '#9c8660'],
+      [new THREE.BoxGeometry(0.16, 0.85, 0.22).translate(0.11, 0.42, 0), '#9c8660'],
+      [new THREE.BoxGeometry(0.5, 0.62, 0.3).translate(0, 1.17, 0), tan],
+      [new THREE.BoxGeometry(0.12, 0.55, 0.14).translate(-0.31, 1.15, -0.08), tan],
+      [new THREE.BoxGeometry(0.12, 0.55, 0.14).translate(0.31, 1.15, -0.08), tan],
       [new THREE.SphereGeometry(0.12, 10, 8).translate(0, 1.6, 0), '#c49a76'],
-      [new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 1.64, 0), '#3f4530'],
+      [new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 1.64, 0), '#5a4f3c'],
       [new THREE.BoxGeometry(0.06, 0.08, 0.85).translate(0.18, 1.12, -0.35), '#232421'],
-    ]);
+    ]).scale(1.5, 1.5, 1.5);
   }
   const m = new THREE.Mesh(soldierGeo, soldierMat);
   m.castShadow = true;
@@ -165,7 +166,7 @@ export class Targets {
       const x = nearTown ? town.x + (r() * 2 - 1) * 700 : (r() * 2 - 1) * (WORLD.bound - 400);
       const z = nearTown ? town.y + (r() * 2 - 1) * 700 : (r() * 2 - 1) * (WORLD.bound - 400);
       const h = this.groundHeight(x, z);
-      if (h > 8 && h < 250 && this.world.slopeAt(x, z) < 0.15 && !this.world.insideBuilding(out.set(x, h + 2, z), 8)) return out.set(x, h, z);
+      if (h > 8 && h < 250 && this.world.slopeAt(x, z) < 0.15 && !this.world.insideBuilding(out.set(x, h + 3, z), 12)) return out.set(x, h, z);
     }
     return out.set(0, Math.max(this.groundHeight(0, 0), 0), 0);
   }
@@ -186,12 +187,12 @@ export class Targets {
     for (let i = 0; i < 40 && anchors.length; i++) {
       const a = anchors[Math.floor(Math.random() * anchors.length)];
       const ang = Math.random() * Math.PI * 2;
-      const d = 12 + Math.random() * 35;
+      const d = 18 + Math.random() * 35;
       const x = a.start.x + Math.cos(ang) * d;
       const z = a.start.z + Math.sin(ang) * d;
       const h = this.groundHeight(x, z);
       // Flat-ish ground only: on a steep slope the uphill ground hides the legs.
-      if (h > 4 && this.world.slopeAt(x, z) < 0.3 && !this.world.insideBuilding(out.set(x, h + 1, z), 2)) return out.set(x, h, z);
+      if (h > 4 && this.world.slopeAt(x, z) < 0.3 && !this.world.insideBuilding(out.set(x, h + 1.5, z), 3)) return out.set(x, h, z);
     }
     return this.groundSpot(out);
   }
