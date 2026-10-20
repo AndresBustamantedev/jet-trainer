@@ -5,6 +5,8 @@ import { FlightModel, aimInputs, TUNING } from './flight.js';
 import { Controls, keyLabel } from './controls.js';
 import { Hud } from './hud.js';
 import { createMenu } from './menu.js';
+import { createGraphics } from './graphics.js';
+import { createTuner } from './tuner.js';
 import { Targets } from './targets.js';
 import { Gun } from './weapons.js';
 import { Sfx } from './audio.js';
@@ -15,10 +17,9 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const canvas = document.getElementById('scene');
 // Log depth keeps far surfaces apart. Without it the water flickers over the ground under it.
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-const MAX_PIXEL_RATIO = Math.min(devicePixelRatio, 2);
-let pixelRatio = MAX_PIXEL_RATIO;
-renderer.setPixelRatio(pixelRatio);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight, false);
+renderer.info.autoReset = false; // the stats overlay counts every pass of a frame
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -39,7 +40,17 @@ const score = { shots: 0, hits: 0, kills: 0 };
 const fx = { hitAge: 9, killAge: 9 };
 const gunPoint = new THREE.Vector3();
 
-const SPAWN = new THREE.Vector3(0, 800, 3900);
+// Spawn about 1.6 km from the town, where the tanks and AA are, flying toward it.
+const SPAWN = new THREE.Vector3();
+let spawnHeading = 0;
+{
+  const town = world.town ? new THREE.Vector3(world.town.x, 0, world.town.y) : new THREE.Vector3();
+  const inward = town.lengthSq() > 1 ? town.clone().negate().normalize() : new THREE.Vector3(0, 0, 1);
+  SPAWN.copy(town).addScaledVector(inward, 1600);
+  SPAWN.y = Math.max(600, world.groundHeight(SPAWN.x, SPAWN.z) + 400);
+  const toTown = town.clone().sub(SPAWN).setY(0).normalize();
+  spawnHeading = Math.atan2(-toTown.x, -toTown.z);
+}
 const OUT_OF_BOUNDS_TIME = 10;
 
 const state = { paused: true, cameraMode: 'chase', crashed: false, oob: 0, agl: 0, warnings: [] };
@@ -70,7 +81,7 @@ function syncAimToJet() {
 }
 
 function respawn() {
-  fm.reset(SPAWN, 0);
+  fm.reset(SPAWN, spawnHeading);
   jet.reset(fm);
   explosion.stop();
   gun.clear();
@@ -213,7 +224,14 @@ function placeCamera(dt) {
 }
 
 // Pointer lock decides between flying and the menu.
-const menu = createMenu(document.getElementById('menu'), controls, { onFly: requestFly });
+const graphics = createGraphics({ renderer, scene, camera, world });
+graphics.setQuality(controls.config.quality);
+createTuner({ world, graphics });
+
+const menu = createMenu(document.getElementById('menu'), controls, {
+  onFly: requestFly,
+  onQuality: (mode) => graphics.setQuality(mode),
+});
 
 function requestFly() {
   sfx.start();
@@ -241,7 +259,7 @@ document.addEventListener('pointerlockerror', () => {
 });
 
 addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight, false);
+  graphics.resize();
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
 });
@@ -256,6 +274,7 @@ function adaptResolution(rawDt) {
   const ms = (perf.time / perf.frames) * 1000;
   perf.time = perf.frames = 0;
   const now = performance.now();
+  const pixelRatio = renderer.getPixelRatio();
   let next = pixelRatio;
   if (ms > 20) {
     next = Math.max(1, pixelRatio - 0.25);
@@ -264,16 +283,14 @@ function adaptResolution(rawDt) {
   } else if (ms < 10 && now > perf.holdUntil) {
     perf.fastWindows++;
     if (perf.fastWindows >= 3) {
-      next = Math.min(MAX_PIXEL_RATIO, pixelRatio + 0.25);
+      next = Math.min(graphics.maxPixelRatio, pixelRatio + 0.25);
       perf.fastWindows = 0;
     }
   } else {
     perf.fastWindows = 0;
   }
   if (next !== pixelRatio) {
-    pixelRatio = next;
-    renderer.setPixelRatio(pixelRatio);
-    renderer.setSize(innerWidth, innerHeight, false);
+    graphics.setPixelRatio(next);
   }
 }
 
@@ -286,7 +303,7 @@ function frame() {
   if (!state.paused) step(dt);
   placeCamera(dt);
   world.update(camera, fm.position);
-  renderer.render(scene, camera);
+  graphics.render();
   gun.muzzle(fm, gunPoint).addScaledVector(fm.fwd, 500);
   hud.draw({
     dt,

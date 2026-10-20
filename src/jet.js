@@ -219,9 +219,10 @@ function buildSide(side) {
   return { group: g, stab };
 }
 
-function flameMat(color, opacity) {
+// Colors above 1 are brighter than white, so High mode's bloom makes them glow.
+function flameMat(color, opacity, boost = 2) {
   return new THREE.MeshBasicMaterial({
-    color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    color: new THREE.Color(color).multiplyScalar(boost), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
   });
 }
 
@@ -374,7 +375,7 @@ export class Explosion {
     this.group = new THREE.Group();
     this.fire = new THREE.Mesh(
       new THREE.SphereGeometry(1, 20, 14),
-      new THREE.MeshBasicMaterial({ color: '#ffb35c', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb35c').multiplyScalar(3), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
     this.smoke = new THREE.Mesh(
       new THREE.SphereGeometry(1, 16, 12),

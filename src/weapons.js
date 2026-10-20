@@ -35,7 +35,7 @@ export class Gun {
 
     this.tracers = new THREE.InstancedMesh(
       new THREE.BoxGeometry(0.16, 0.16, 1),
-      new THREE.MeshBasicMaterial({ color: '#ffcf6e', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffcf6e').multiplyScalar(2.5), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
       MAX_BULLETS,
     );
     this.tracers.frustumCulled = false;
@@ -44,7 +44,7 @@ export class Gun {
 
     this.flash = new THREE.Mesh(
       new THREE.SphereGeometry(0.5, 10, 8),
-      new THREE.MeshBasicMaterial({ color: '#ffd38a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd38a').multiplyScalar(3), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
     this.flash.visible = false;
     scene.add(this.flash);

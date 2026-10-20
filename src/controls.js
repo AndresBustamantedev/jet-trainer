@@ -127,6 +127,7 @@ function presetConfig(id, base = {}) {
     sensAim: base.sensAim ?? 1,
     sound: base.sound ?? true,
     showStats: base.showStats ?? false,
+    quality: base.quality === 'performance' || base.quality === 'high' ? base.quality : DEFAULT_QUALITY,
     keys,
   };
 }
@@ -146,6 +147,11 @@ function loadConfig() {
   } catch { /* storage blocked or bad data: use defaults */ }
   return presetConfig('bf6');
 }
+
+// High graphics unless the machine looks small (few cores or a phone).
+const DEFAULT_QUALITY = typeof navigator !== 'undefined' && ((navigator.hardwareConcurrency || 8) <= 4 || /Mobi|Android/i.test(navigator.userAgent))
+  ? 'performance'
+  : 'high';
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 

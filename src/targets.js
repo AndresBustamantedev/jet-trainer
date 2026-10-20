@@ -169,8 +169,11 @@ export class Targets {
   spawnAir(t) {
     const r = Math.random;
     t.R = 500 + r() * 900;
-    t.cx = (r() * 2 - 1) * (WORLD.bound - t.R - 300);
-    t.cz = (r() * 2 - 1) * (WORLD.bound - t.R - 300);
+    // Circle near the town so the fight is close to the spawn.
+    const town = this.world.town || { x: 0, y: 0 };
+    const lim = WORLD.bound - t.R - 300;
+    t.cx = Math.max(-lim, Math.min(lim, town.x + (r() * 2 - 1) * 2200));
+    t.cz = Math.max(-lim, Math.min(lim, town.y + (r() * 2 - 1) * 2200));
     t.weave = r() < 0.5 ? 0 : 40 + r() * 90;
     t.k = 1 + Math.floor(r() * 3);
     let ground = 0;

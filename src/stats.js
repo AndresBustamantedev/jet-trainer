@@ -23,6 +23,7 @@ export class Stats {
 
   begin(enabled) {
     this.t0 = performance.now();
+    this.renderer.info.reset();
     if (enabled && this.ext && !this.active && this.queries.length < 8) {
       this.active = this.gl.createQuery();
       this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, this.active);

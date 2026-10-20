@@ -9,7 +9,7 @@ const TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.8c2.1
 
 const NOTES = { mouseYaw: 'Recommended' };
 
-export function createMenu(root, controls, { onFly }) {
+export function createMenu(root, controls, { onFly, onQuality }) {
   let waiting = null; // { action, slot } while rebinding
   let message = '';
   let leaveTimer = 0;
@@ -84,13 +84,17 @@ export function createMenu(root, controls, { onFly }) {
                 ${slider('sensX', c.mouseX === 'roll' ? 'Roll sensitivity' : 'Yaw sensitivity')}`
                 : slider('sensAim', 'Aim sensitivity')}
               ${checkbox('invertY', 'Invert pitch', c.invertY)}
-              ${checkbox('sound', 'Sound', c.sound)}
             </li>
             <li>
               <h2>Check your keys</h2>
               ${ACTIONS.map(([action, label]) => line(label, keyButton(action, 0) + keyButton(action, 1))).join('')}
               <p class="hint">Click a key, then press the new key or mouse button. Backspace clears it, Esc cancels.${usesCtrl && !IS_MAC ? ' On Windows, Ctrl can trigger browser shortcuts like Ctrl+W.' : ''}</p>
               <button class="reset" data-reset>Reset keys to ${PRESETS[c.preset].name}</button>
+            </li>
+            <li>
+              <h2>Graphics and sound</h2>
+              ${line('Graphics', [['performance', 'Performance'], ['high', 'High']].map(([v, label]) => `<button class="pick" data-quality="${v}" aria-pressed="${c.quality === v}">${label}</button>`).join(''))}
+              ${checkbox('sound', 'Sound', c.sound)}
             </li>
           </ol>
           <footer>Fan made, not affiliated with EA or DICE. <a href="https://github.com/adarkeser/jet-trainer" target="_blank" rel="noopener">Source on GitHub</a></footer>
@@ -118,6 +122,12 @@ export function createMenu(root, controls, { onFly }) {
       c[key] = Number(input.value);
       root.querySelector(`[data-val="${key}"]`).textContent = c[key].toFixed(2);
       controls.save();
+    }));
+    root.querySelectorAll('[data-quality]').forEach((b) => b.addEventListener('click', () => {
+      c.quality = b.dataset.quality;
+      controls.save();
+      onQuality(c.quality);
+      render();
     }));
     for (const id of ['invertY', 'sound']) {
       root.querySelector(`#${id}`).addEventListener('change', (e) => {
