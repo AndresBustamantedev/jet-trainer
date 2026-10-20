@@ -17,6 +17,8 @@ const MAX_BULLETS = 400;
 const TRACER_LENGTH = 12;
 export const GUN_OFFSET = new THREE.Vector3(1.3, 0.35, -1.6); // right wing root, like an F-22
 const Z = new THREE.Vector3(0, 0, 1);
+const DIRT = new THREE.Color('#8c7b66');
+const CONCRETE = new THREE.Color('#a8a49c');
 
 const _p0 = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -25,8 +27,10 @@ const _m = new THREE.Matrix4();
 const _s = new THREE.Vector3(1, 1, TRACER_LENGTH);
 
 export class Gun {
-  constructor(scene, groundHeight) {
-    this.groundHeight = groundHeight;
+  constructor(scene, world) {
+    this.groundHeight = world.groundHeight;
+    this.buildingHit = world.buildingHit;
+    this.wallHit = new THREE.Vector3();
     this.bullets = [];
     this.heat = 0;
     this.overheated = false;
@@ -77,8 +81,9 @@ export class Gun {
     this.bullets.push(b);
   }
 
-  puff(p) {
+  puff(p, color = DIRT) {
     const puff = this.puffs[this.nextPuff++ % this.puffs.length];
+    puff.mesh.material.color.copy(color);
     puff.mesh.position.copy(p);
     puff.mesh.visible = true;
     puff.t = 0;
@@ -123,6 +128,10 @@ export class Gun {
       if (hit) {
         out.hits++;
         if (targets.damage(hit, GUN.damage)) out.kills++;
+        continue;
+      }
+      if (this.buildingHit(_p0, b.p, this.wallHit)) {
+        this.puff(this.wallHit, CONCRETE);
         continue;
       }
       const ground = Math.max(this.groundHeight(b.p.x, b.p.z), 0);

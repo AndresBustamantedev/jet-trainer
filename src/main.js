@@ -33,7 +33,7 @@ const fm = new FlightModel();
 const controls = new Controls();
 const hud = new Hud(document.getElementById('hud'));
 const targets = new Targets(scene, world);
-const gun = new Gun(scene, world.groundHeight);
+const gun = new Gun(scene, world);
 const sfx = new Sfx();
 const stats = new Stats(renderer);
 const score = { shots: 0, hits: 0, kills: 0 };
@@ -107,7 +107,7 @@ function crash() {
 function pullUpWarning() {
   for (let t = 1; t <= 4; t++) {
     _v.copy(fm.position).addScaledVector(fm.velDir, fm.speed * t);
-    if (_v.y < Math.max(world.groundHeight(_v.x, _v.z), 0) + 15) return true;
+    if (_v.y < Math.max(world.groundHeight(_v.x, _v.z), 0) + 15 || world.insideBuilding(_v, 12)) return true;
   }
   return false;
 }
@@ -174,7 +174,7 @@ function step(dt) {
 
   const ground = Math.max(world.groundHeight(fm.position.x, fm.position.z), 0);
   state.agl = fm.position.y - ground;
-  if (state.agl < 1.3 || targets.collides(fm.position, 6)) {
+  if (state.agl < 1.3 || targets.collides(fm.position, 6) || world.insideBuilding(fm.position, 3.5)) {
     crash();
     return;
   }

@@ -654,6 +654,9 @@ export function createWorld(scene, renderer) {
 
   // A town on the flattest low ground near the middle.
   let town = null;
+  // Buildings as boxes for collisions: the jet crashes into them and bullets stop on them.
+  const buildings = [];
+  const townBox = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
   for (let i = 0; i < 400 && !town; i++) {
     const ang = i * 2.39996;
     const rad = 400 + i * 7;
@@ -684,7 +687,17 @@ export function createWorld(scene, renderer) {
         const tall = 8 + (1 - d) * (15 + rand() * 45);
         const house = d > 0.45 && rand() < 0.7;
         sc.set(14 + rand() * 12, house ? 7 + rand() * 4 : tall, 14 + rand() * 12);
-        m.compose(p.set(x, h - 3, z), q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, (rand() - 0.5) * 0.1), sc);
+        const ang = (rand() - 0.5) * 0.1;
+        m.compose(p.set(x, h - 3, z), q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, ang), sc);
+        // Axis-aligned box around the slightly turned building (and its roof).
+        const ex = Math.abs(Math.cos(ang)) * sc.x / 2 + Math.abs(Math.sin(ang)) * sc.z / 2;
+        const ez = Math.abs(Math.sin(ang)) * sc.x / 2 + Math.abs(Math.cos(ang)) * sc.z / 2;
+        const box = { min: [x - ex, h - 3, z - ez], max: [x + ex, h - 3 + sc.y * (house ? 1.35 : 1), z + ez] };
+        buildings.push(box);
+        for (let a = 0; a < 3; a++) {
+          townBox.min[a] = Math.min(townBox.min[a], box.min[a]);
+          townBox.max[a] = Math.max(townBox.max[a], box.max[a]);
+        }
         blocks.setMatrixAt(b, m);
         const lit = lightAt(x, z);
         blocks.setColorAt(b++, tint.copy(walls[Math.floor(rand() * walls.length)]).multiplyScalar(lit));
@@ -728,10 +741,62 @@ export function createWorld(scene, renderer) {
   }
   setLook(look);
 
+  // Where the segment p0 to p1 first enters a building, as a 0..1 fraction, or -1.
+  function segmentBox(p0, p1, b) {
+    let tmin = 0;
+    let tmax = 1;
+    for (let a = 0; a < 3; a++) {
+      const o = a === 0 ? p0.x : a === 1 ? p0.y : p0.z;
+      const d = (a === 0 ? p1.x : a === 1 ? p1.y : p1.z) - o;
+      if (Math.abs(d) < 1e-9) {
+        if (o < b.min[a] || o > b.max[a]) return -1;
+        continue;
+      }
+      let t1 = (b.min[a] - o) / d;
+      let t2 = (b.max[a] - o) / d;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+      if (tmin > tmax) return -1;
+    }
+    return tmin;
+  }
+
+  // Bullets: point where p0 to p1 hits a building, or null. Most bullets skip out at the town check.
+  function buildingHit(p0, p1, out) {
+    if (!buildings.length) return null;
+    const lo = townBox.min;
+    const hi = townBox.max;
+    if (Math.max(p0.x, p1.x) < lo[0] || Math.min(p0.x, p1.x) > hi[0] || Math.min(p0.y, p1.y) > hi[1]
+      || Math.max(p0.z, p1.z) < lo[2] || Math.min(p0.z, p1.z) > hi[2]) return null;
+    let best = 2;
+    for (const b of buildings) {
+      const t = segmentBox(p0, p1, b);
+      if (t >= 0 && t < best) best = t;
+    }
+    return best <= 1 ? out.copy(p0).lerp(p1, best) : null;
+  }
+
+  // The jet (or a spawn spot): is a sphere of this radius touching a building?
+  function insideBuilding(p, radius) {
+    if (!buildings.length) return false;
+    if (p.x < townBox.min[0] - radius || p.x > townBox.max[0] + radius || p.y > townBox.max[1] + radius
+      || p.z < townBox.min[2] - radius || p.z > townBox.max[2] + radius) return false;
+    for (const b of buildings) {
+      const dx = Math.max(b.min[0] - p.x, 0, p.x - b.max[0]);
+      const dy = Math.max(b.min[1] - p.y, 0, p.y - b.max[1]);
+      const dz = Math.max(b.min[2] - p.z, 0, p.z - b.max[2]);
+      if (dx * dx + dy * dy + dz * dz < radius * radius) return true;
+    }
+    return false;
+  }
+
   return {
     groundHeight,
     slopeAt,
     town,
+    buildingHit,
+    insideBuilding,
     sun,
     look,
     setLook,

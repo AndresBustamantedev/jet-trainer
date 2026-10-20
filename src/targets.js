@@ -137,7 +137,7 @@ export class Targets {
       const x = nearTown ? town.x + (r() * 2 - 1) * 700 : (r() * 2 - 1) * (WORLD.bound - 400);
       const z = nearTown ? town.y + (r() * 2 - 1) * 700 : (r() * 2 - 1) * (WORLD.bound - 400);
       const h = this.groundHeight(x, z);
-      if (h > 8 && h < 250 && this.world.slopeAt(x, z) < 0.15) return out.set(x, h, z);
+      if (h > 8 && h < 250 && this.world.slopeAt(x, z) < 0.15 && !this.world.insideBuilding(out.set(x, h + 2, z), 8)) return out.set(x, h, z);
     }
     return out.set(0, Math.max(this.groundHeight(0, 0), 0), 0);
   }
