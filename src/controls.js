@@ -110,12 +110,20 @@ export function keyLabel(code) {
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
+// Space fires too, as a second fire key, wherever no other action uses it
+// (in Mouse yaw and Look and turn it is pitch up).
+function addSpaceFire(keys) {
+  const used = Object.values(keys).some((k) => k.includes('Space'));
+  if (!used && !keys.fire[1]) keys.fire[1] = 'Space';
+}
+
 function presetConfig(id, base = {}) {
   const p = PRESETS[id] || PRESETS.bf6;
   const keys = {};
   for (const [action] of ACTIONS) {
     keys[action] = [...(p.keys[action] || SHARED_KEYS[action] || [null, null])];
   }
+  addSpaceFire(keys);
   return {
     preset: PRESETS[id] ? id : 'bf6',
     custom: false,
@@ -127,6 +135,7 @@ function presetConfig(id, base = {}) {
     sensAim: base.sensAim ?? 1,
     sound: base.sound ?? true,
     showStats: base.showStats ?? false,
+    spaceFire: true, // saved settings from before Space could fire get it once on load
     quality: base.quality === 'performance' || base.quality === 'high' ? base.quality : DEFAULT_QUALITY,
     qualityChosen: base.qualityChosen ?? false, // true once the player picks a mode themselves
     keys,
@@ -143,6 +152,7 @@ function loadConfig() {
       for (const [action] of ACTIONS) {
         if (Array.isArray(saved.keys[action])) cfg.keys[action] = [saved.keys[action][0] ?? null, saved.keys[action][1] ?? null];
       }
+      if (!saved.spaceFire) addSpaceFire(cfg.keys);
       return cfg;
     }
   } catch { /* storage blocked or bad data: use defaults */ }
