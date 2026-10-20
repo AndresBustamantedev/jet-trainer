@@ -1,5 +1,6 @@
 // Pause menu, drawn as a preflight card on a pilot's kneeboard.
 import { ACTIONS, PRESETS, keyLabel } from './controls.js';
+import { JET_TYPES } from './flight.js';
 
 const IS_MAC = /Mac/.test(navigator.platform);
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -17,7 +18,7 @@ function setFullscreen(on) {
   else (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
 }
 
-export function createMenu(root, controls, { onFly, onQuality }) {
+export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
   let waiting = null; // { action, slot } while rebinding
   let message = '';
   let leaveTimer = 0;
@@ -80,6 +81,19 @@ export function createMenu(root, controls, { onFly, onQuality }) {
           </header>
           <ol class="steps">
             <li>
+              <h2>Pick your jet</h2>
+              <div class="choices" role="radiogroup" aria-label="Jet">
+                ${Object.entries(JET_TYPES).map(([id, j]) => `
+                  <button class="choice" role="radio" aria-checked="${id === c.jetType}" data-jet="${id}">
+                    <span class="box">${id === c.jetType ? TICK : ''}</span>
+                    <span class="choice-text">
+                      <span class="choice-name">${j.name}</span>
+                      <span class="choice-sum">${j.summary}</span>
+                    </span>
+                  </button>`).join('')}
+              </div>
+            </li>
+            <li>
               <h2>Pick your controls</h2>
               <div class="choices" role="radiogroup" aria-label="Control setup">
                 ${Object.entries(PRESETS).map(([id, p]) => `
@@ -123,6 +137,13 @@ export function createMenu(root, controls, { onFly, onQuality }) {
         ${message ? `<p class="msg" role="alert">${message}</p>` : ''}
       </div>`;
 
+    root.querySelectorAll('[data-jet]').forEach((b) => b.addEventListener('click', () => {
+      if (c.jetType === b.dataset.jet) return;
+      c.jetType = b.dataset.jet;
+      controls.save();
+      onJetType(c.jetType);
+      render();
+    }));
     root.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
       stopWaiting();
       controls.applyPreset(b.dataset.preset);

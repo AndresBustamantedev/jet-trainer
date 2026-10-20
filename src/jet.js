@@ -210,6 +210,11 @@ function buildSide(side) {
   const m = missile();
   m.position.set(3.7, -0.5, 1.2);
   g.add(m);
+  // Inner pylon, used by the attack jet's bombs.
+  const inner = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.3, 1.0), DARK);
+  inner.position.set(2.4, -0.27, 0.8);
+  inner.visible = false;
+  g.add(inner);
 
   const nav = new THREE.Mesh(
     new THREE.SphereGeometry(0.08, 8, 6),
@@ -222,7 +227,7 @@ function buildSide(side) {
   nozzle.position.set(0.72, -0.02, 9.0);
   g.add(nozzle);
 
-  return { group: g, stab };
+  return { group: g, stab, missile: m, inner };
 }
 
 // Colors above 1 are brighter than white, so High mode's bloom makes them glow.
@@ -289,7 +294,7 @@ function buildModel() {
     }
   });
 
-  return { group: g, stabs: sides.map((s) => s.stab), flames, diamonds, glows, strobe };
+  return { group: g, stabs: sides.map((s) => s.stab), sides, flames, diamonds, glows, strobe };
 }
 
 // Cockpit seen from the pilot's seat: a dark panel under the HUD with a button block and a
@@ -434,6 +439,8 @@ export class Jet {
     this.diamonds = parts.diamonds;
     this.glows = parts.glows;
     this.strobe = parts.strobe;
+    this.sides = parts.sides;
+    this.bombsOnWings = [];
     this.flame = 0.4;
     this.trails = [new Trail(scene), new Trail(scene)];
     scene.add(this.group);
@@ -442,6 +449,37 @@ export class Jet {
     this.glassLocal = cockpit.glass;
     this.glassWorld = cockpit.glass.map((p) => p.clone());
     this.display = cockpit.display;
+  }
+
+  // The attack jet carries up to four bombs under the wings, outer pylons first.
+  mountBombs(geometry, material) {
+    const spots = [[-3.7, -0.62, 1.1], [3.7, -0.62, 1.1], [-2.4, -0.62, 0.7], [2.4, -0.62, 0.7]];
+    for (const [x, y, z] of spots) {
+      const b = new THREE.Mesh(geometry, material);
+      b.position.set(x, y, z);
+      b.castShadow = true;
+      b.visible = false;
+      this.group.add(b);
+      this.bombsOnWings.push(b);
+    }
+  }
+
+  setType(type) {
+    const attack = type === 'attack';
+    this.type = type;
+    // Greener camo for the attack jet.
+    PAINT.color.set(attack ? '#c6d3b6' : '#ffffff');
+    for (const s of this.sides) {
+      s.missile.visible = !attack;
+      s.inner.visible = attack;
+    }
+    this.setBombCount(attack ? this.bombsOnWings.length : 0);
+  }
+
+  // Show as many bombs on the wings as are left (they drop alternating sides).
+  setBombCount(n) {
+    const count = this.type === 'attack' ? n : 0;
+    this.bombsOnWings.forEach((b, i) => (b.visible = i < count));
   }
 
   // HUD glass outline in world space, for clipping the HUD in cockpit view.

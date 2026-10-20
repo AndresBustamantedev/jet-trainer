@@ -227,11 +227,42 @@ export class Hud {
   }
 
   // Gun reticle where the bullets go, hit markers and heat.
+  // Bombs selected: a small cross where the nose points and the impact circle where a bomb
+  // dropped now would land, joined by a line (you fly the circle onto the target).
+  bombHud(s, x, y) {
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y);
+    ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7);
+    ctx.stroke();
+    const b = s.bombs;
+    const p = b.impact && this.project(s.camera, b.impact);
+    if (p) {
+      ctx.save();
+      ctx.globalAlpha = 0.5 * this.alpha;
+      ctx.setLineDash([4, 5]);
+      this.line([x, y], p);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 11, 0, Math.PI * 2);
+      ctx.moveTo(p[0] + 2, p[1]);
+      ctx.arc(p[0], p[1], 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const label = b.ammo > 0 ? `Bombs ${b.ammo}/${b.capacity}` : 'Bombs reloading';
+    this.text(label, x, y + 30, { size: 13, weight: 700, align: 'center', color: b.ammo > 0 ? this.ink : WARN });
+  }
+
   gunHud(s) {
     const { ctx } = this;
     const g = this.project(s.camera, s.gunPoint);
     if (!g) return;
     const [x, y] = g;
+    if (s.bombs && s.bombs.selected) {
+      this.bombHud(s, x, y);
+      if (s.killAge < 1.6) this.text('Target destroyed', x, y + 50, { size: 16, weight: 700, align: 'center', color: DANGER });
+      return;
+    }
     ctx.beginPath();
     ctx.arc(x, y, 13, 0, Math.PI * 2);
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -449,7 +480,8 @@ export class Hud {
     const fm = s.fm;
     const y = minY + (maxY - minY) * 0.64;
     const thr = fm.boost ? 'AB' : fm.throttle > 0 ? 'MIL' : fm.throttle < 0 ? 'BRK' : 'CRZ';
-    const left = [`M ${(fm.kmh / 1225).toFixed(2)}`, `G ${fm.g.toFixed(1)}`, thr];
+    const wpn = s.bombs && s.bombs.selected ? `BOMB ${s.bombs.ammo}` : 'GUN';
+    const left = [`M ${(fm.kmh / 1225).toFixed(2)}`, `G ${fm.g.toFixed(1)}`, thr, wpn];
     const gun = s.gun.overheated ? 'GUN OVHT' : s.gun.heat > 0.75 ? 'GUN HOT' : '';
     const right = [`AL ${Math.max(0, Math.round(s.agl))}`, `TURN ${Math.round(fm.turnEff * 100)}`, gun].filter(Boolean);
     const font = { size: 12, weight: 700 };
@@ -476,6 +508,8 @@ export class Hud {
     this.text(`Turn rate ${eff}%`, x, y, { size: 16, color: eff >= 98 ? this.best : this.ink });
     y += 22;
     this.text(`Camera: ${s.cameraMode === 'chase' ? 'chase' : 'cockpit'}`, x, y, { size: 14 });
+    const wpn = s.bombs && s.bombs.selected ? `Bombs ${s.bombs.ammo}/${s.bombs.capacity}` : 'Machine gun';
+    this.text(`Weapon: ${wpn}${s.bombs ? '   (1 gun, 2 bombs)' : ''}`, x, y - 96, { size: 14, weight: 700 });
 
     this.text(s.presetName, 28, 30, { size: 17, weight: 700 });
     this.text(`${s.keyNames.fire} fire     Esc settings     ${s.keyNames.camera} camera     ${s.keyNames.respawn} respawn`, 28, 52, { size: 13 });

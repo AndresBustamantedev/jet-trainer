@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { createWorld, WORLD } from './world.js';
 import { Jet, Explosion, COCKPIT_LAYER, COCKPIT_VIEW_LAYER, EYE } from './jet.js';
-import { FlightModel, aimInputs, TUNING } from './flight.js';
+import { FlightModel, aimInputs, TUNING, applyJetType } from './flight.js';
+import { Bombs, bombGeometry, bombMaterial, BOMBS } from './bombs.js';
 import { Controls, keyLabel } from './controls.js';
 import { Hud } from './hud.js';
 import { createMenu } from './menu.js';
@@ -34,6 +35,18 @@ const controls = new Controls();
 const hud = new Hud(document.getElementById('hud'));
 const targets = new Targets(scene, world);
 const gun = new Gun(scene, world);
+const bombs = new Bombs(scene, world, targets);
+jet.mountBombs(bombGeometry(), bombMaterial);
+const impact = new THREE.Vector3();
+let weapon = 'gun'; // 'gun' or 'bombs' (attack jet only)
+const isAttack = () => controls.config.jetType === 'attack';
+
+// Picking a jet changes its handling, look and weapons, and starts a fresh run.
+function setJetType(type) {
+  applyJetType(type);
+  jet.setType(type);
+  weapon = 'gun';
+}
 const sfx = new Sfx();
 const stats = new Stats(renderer);
 const score = { shots: 0, hits: 0, kills: 0 };
@@ -85,6 +98,7 @@ function respawn() {
   jet.reset(fm);
   explosion.stop();
   gun.clear();
+  bombs.reset();
   state.crashed = false;
   state.oob = 0;
   cmd.pitch = cmd.roll = cmd.yaw = cmd.throttle = 0;
@@ -127,7 +141,18 @@ function step(dt) {
   targets.update(dt, fm.position);
   fx.hitAge += dt;
   fx.killAge += dt;
-  const shot = gun.update(dt, fm, !state.crashed && controls.held('fire'), targets);
+  // Weapons: 1 machine gun, 2 bombs, F switches. Only the attack jet has bombs.
+  if (controls.tapped('weapon1')) weapon = 'gun';
+  if (controls.tapped('weapon2') && isAttack()) weapon = 'bombs';
+  if (controls.tapped('nextWeapon') && isAttack()) weapon = weapon === 'gun' ? 'bombs' : 'gun';
+  const trigger = !state.crashed && controls.held('fire');
+  const shot = gun.update(dt, fm, trigger && weapon === 'gun', targets);
+  const bombRun = bombs.update(dt, fm, trigger && weapon === 'bombs');
+  jet.setBombCount(bombs.ammo);
+  score.kills += bombRun.kills;
+  if (bombRun.kills) fx.killAge = 0;
+  if (bombRun.drops) sfx.drop();
+  if (bombRun.booms) sfx.boom();
   score.shots += shot.shots;
   score.hits += shot.hits;
   score.kills += shot.kills;
@@ -238,6 +263,10 @@ createTuner({ world, graphics });
 const menu = createMenu(document.getElementById('menu'), controls, {
   onFly: requestFly,
   onQuality: (mode) => graphics.setQuality(mode),
+  onJetType: (type) => {
+    setJetType(type);
+    respawn();
+  },
 });
 
 function requestFly() {
@@ -326,7 +355,7 @@ function updateCockpitScreen() {
     `SPD ${String(Math.round(fm.kmh)).padStart(4)} KMH`,
     `ALT ${String(Math.round(fm.position.y)).padStart(4)} M`,
     `KILLS ${score.kills}  ACC ${acc}%`,
-    gun.overheated ? 'GUN OVERHEAT' : `GUN HEAT ${Math.round(gun.heat * 100)}%`,
+    weapon === 'bombs' ? `BOMBS ${bombs.ammo}/${BOMBS.capacity}` : gun.overheated ? 'GUN OVERHEAT' : `GUN HEAT ${Math.round(gun.heat * 100)}%`,
   ]);
 }
 
@@ -348,6 +377,13 @@ function frame() {
     gunPoint,
     targetList: targets.list,
     gun,
+    weapon,
+    bombs: isAttack() ? {
+      selected: weapon === 'bombs',
+      ammo: bombs.ammo,
+      capacity: BOMBS.capacity,
+      impact: weapon === 'bombs' && bombs.ammo > 0 && !state.crashed ? bombs.predictImpact(fm, impact) : null,
+    } : null,
     score,
     stats: controls.config.showStats ? stats.out : null,
     toast: performance.now() < toast.until ? toast.text : '',
@@ -369,6 +405,7 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
+setJetType(controls.config.jetType);
 respawn();
 state.agl = fm.position.y - Math.max(world.groundHeight(fm.position.x, fm.position.z), 0);
 menu.show(true);
