@@ -6,7 +6,7 @@
   <title>Jet Trainer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=Shantell+Sans:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     {
@@ -24,10 +24,10 @@
   <script>
     // Browsers block ES modules on file://, so the game cannot start from a double-clicked file.
     if (location.protocol === 'file:') {
-      document.getElementById('menu').innerHTML = '<div class="panel"><h1>Jet trainer</h1>' +
-        '<p class="lede">This page has to run from the local server. Start it with ' +
+      document.getElementById('menu').innerHTML = '<div class="board"><div class="card"><h1>Jet trainer</h1>' +
+        '<p class="sub">This page has to run from a local server. Start one with ' +
         '<code>python3 -m http.server 8137</code> in the jet-trainer folder, then open ' +
-        '<a href="http://127.0.0.1:8137">http://127.0.0.1:8137</a>.</p></div>';
+        '<a href="http://127.0.0.1:8137">http://127.0.0.1:8137</a>.</p></div></div>';
     }
   </script>
   <script type="module" src="src/main.js"></script>

@@ -6,7 +6,7 @@ const INK = '#e2fbef';
 const BEST = '#8effc7';
 const WARN = '#ffb547';
 const DANGER = '#ff5d4d';
-const FONT = "'Saira Semi Condensed', system-ui, sans-serif";
+const FONT = "'B612', system-ui, sans-serif"; // Airbus's cockpit display typeface
 const DEG = Math.PI / 180;
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -255,10 +255,10 @@ export class Hud {
     ctx.save();
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(6, 14, 12, 0.6)';
-    ctx.fillRect(x - 300, top, 300 + 10, lines.length * 19 + 12);
+    ctx.fillRect(x - 372, top, 372 + 10, lines.length * 19 + 12);
     lines.forEach(([label, value], i) => {
       const y = top + 16 + i * 19;
-      this.text(label, x - 292, y, { size: 13, weight: 600 });
+      this.text(label, x - 364, y, { size: 13, weight: 700 });
       this.text(value, x, y, { size: 13, align: 'right' });
     });
     ctx.restore();
