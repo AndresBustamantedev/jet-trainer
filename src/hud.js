@@ -278,7 +278,8 @@ export class Hud {
       if (!t.alive) continue;
       const dist = t.pos.distanceTo(s.fm.position);
       const soldier = t.kind === 'soldier';
-      if (soldier && dist > 2000) continue; // only nearby soldiers, so the screen stays readable
+      // Only nearby soldiers and drones get markers, so the screen stays readable.
+      if ((soldier || t.kind === 'air') && dist > 2000) continue;
       const p = this.project(cam, t.pos);
       const onScreen = p && p[0] > 20 && p[0] < this.w - 20 && p[1] > 20 && p[1] < this.h - 20;
       ctx.save();

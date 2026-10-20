@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Explosion } from './jet.js';
 import { WORLD, coloredMerge } from './world.js';
 
-const DRONES = 6;
+const DRONES = 20;
 const TANKS = 6;
 const AA_GUNS = 3;
 const SOLDIERS = 24;
@@ -23,30 +23,26 @@ const _right = new THREE.Vector3();
 const _back = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 
+// One mesh per drone (body, nose, wings, tips, fin, tail), so many drones stay cheap to draw.
+let droneGeo = null;
+const droneMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.2, roughness: 0.5 });
 function droneModel() {
-  const paint = new THREE.MeshStandardMaterial({ color: '#e8562a', metalness: 0.2, roughness: 0.5 });
-  const white = new THREE.MeshStandardMaterial({ color: '#f2f0ea', metalness: 0.1, roughness: 0.5 });
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.35, 7, 14).rotateX(Math.PI / 2), paint));
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.6, 14).rotateX(-Math.PI / 2), white);
-  nose.position.z = -4.3;
-  g.add(nose);
-  const wing = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.1, 1.6), paint);
-  wing.position.z = 0.4;
-  g.add(wing);
-  for (const side of [-1, 1]) {
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 1.6), white);
-    tip.position.set(side * 3.9, 0, 0.4);
-    g.add(tip);
+  if (!droneGeo) {
+    const orange = '#e8562a';
+    const white = '#f2f0ea';
+    droneGeo = coloredMerge([
+      [new THREE.CylinderGeometry(0.5, 0.35, 7, 14).rotateX(Math.PI / 2), orange],
+      [new THREE.ConeGeometry(0.35, 1.6, 14).rotateX(-Math.PI / 2).translate(0, 0, -4.3), white],
+      [new THREE.BoxGeometry(7.2, 0.1, 1.6).translate(0, 0, 0.4), orange],
+      [new THREE.BoxGeometry(0.6, 0.12, 1.6).translate(-3.9, 0, 0.4), white],
+      [new THREE.BoxGeometry(0.6, 0.12, 1.6).translate(3.9, 0, 0.4), white],
+      [new THREE.BoxGeometry(0.08, 1.3, 1.2).translate(0, 0.65, 3.0), orange],
+      [new THREE.BoxGeometry(2.6, 0.08, 0.8).translate(0, 0, 3.2), white],
+    ]);
   }
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.3, 1.2), paint);
-  fin.position.set(0, 0.65, 3.0);
-  g.add(fin);
-  const stab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 0.8), white);
-  stab.position.z = 3.2;
-  g.add(stab);
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  return g;
+  const m = new THREE.Mesh(droneGeo, droneMat);
+  m.castShadow = true;
+  return m;
 }
 
 function tankModel() {
@@ -238,8 +234,8 @@ export class Targets {
     // Circle near the town so the fight is close to the spawn.
     const town = this.world.town || { x: 0, y: 0 };
     const lim = WORLD.bound - t.R - 300;
-    t.cx = Math.max(-lim, Math.min(lim, town.x + (r() * 2 - 1) * 2200));
-    t.cz = Math.max(-lim, Math.min(lim, town.y + (r() * 2 - 1) * 2200));
+    t.cx = Math.max(-lim, Math.min(lim, town.x + (r() * 2 - 1) * 3000));
+    t.cz = Math.max(-lim, Math.min(lim, town.y + (r() * 2 - 1) * 3000));
     t.weave = r() < 0.5 ? 0 : 40 + r() * 90;
     t.k = 1 + Math.floor(r() * 3);
     let ground = 0;
