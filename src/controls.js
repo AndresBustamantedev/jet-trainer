@@ -4,7 +4,10 @@
 const STORAGE_KEY = 'jet-trainer.controls.v2';
 
 export const ACTIONS = [
-  ['fire', 'Fire gun'],
+  ['fire', 'Fire'],
+  ['weapon1', 'Machine gun'],
+  ['weapon2', 'Bombs (attack jet)'],
+  ['nextWeapon', 'Switch weapon'],
   ['afterburner', 'Afterburner'],
   ['throttleUp', 'Throttle up'],
   ['throttleDown', 'Throttle down (air brake)'],
@@ -25,6 +28,9 @@ export const ACTIONS = [
 // Respawn is Enter because R is reload in BF6.
 const SHARED_KEYS = {
   fire: ['Mouse0', null],
+  weapon1: ['Digit1', null],
+  weapon2: ['Digit2', null],
+  nextWeapon: ['KeyF', null],
   afterburner: ['ShiftLeft', null],
   throttleUp: ['KeyW', null],
   throttleDown: ['KeyS', null],
@@ -186,6 +192,7 @@ function presetConfig(id, base = {}) {
     sensAim: base.sensAim ?? 1,
     sound: base.sound ?? true,
     showStats: base.showStats ?? false,
+    jetType: base.jetType === 'attack' ? 'attack' : 'fighter',
     spaceFire: true, // saved settings from before Space could fire get it once on load
     quality: base.quality === 'performance' || base.quality === 'high' ? base.quality : DEFAULT_QUALITY,
     qualityChosen: base.qualityChosen ?? false, // true once the player picks a mode themselves

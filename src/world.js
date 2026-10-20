@@ -1,6 +1,7 @@
 // Island terrain, water, sky, clouds, trees and a small town.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { planSites, shapeGround, nearSite, buildPlaces } from './places.js';
 
 export const WORLD = {
   size: 11000,
@@ -168,8 +169,10 @@ function terrainMaterial() {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 attribute float aForest;
+attribute float aPlace;
 attribute vec2 aBake;
 varying float vForest;
+varying float vPlace;
 varying vec2 vBake;
 varying vec3 vWPos;
 varying vec3 vWNormal;
@@ -177,6 +180,7 @@ varying vec2 vNoise;
 ${GLSL_NOISE}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 vForest = aForest;
+vPlace = aPlace;
 vBake = aBake;
 vWPos = (modelMatrix * vec4(position, 1.0)).xyz;
 vWNormal = normalize(mat3(modelMatrix) * normal);
@@ -185,6 +189,7 @@ vNoise = vec2(wFbm(vWPos.xz * 0.0012), wFbm(vWPos.xz * 0.011));`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 varying float vForest;
+varying float vPlace;
 varying vec2 vBake;
 varying vec3 vWPos;
 varying vec3 vWNormal;
@@ -243,6 +248,10 @@ reflectedLight.indirectDiffuse *= vBake.y;`)
   float beach = 1.0 - smoothstep(2.5, 7.0, h + (fine - 0.5) * 3.0 + (mid - 0.5) * 4.0);
   col = mix(col, sand, beach);
   col = mix(col, seabed, smoothstep(0.0, -18.0, h));
+
+  // Places (town, base, airfield...) sit on packed dirt.
+  vec3 dirt = mix(vec3(0.19, 0.17, 0.13), vec3(0.25, 0.23, 0.19), mid);
+  col = mix(col, dirt, vPlace * (1.0 - beach));
 
   col *= 0.82 + 0.36 * fine * (1.0 - snowMask * 0.7);
   diffuseColor.rgb = col;
@@ -560,26 +569,33 @@ export function createWorld(scene, renderer) {
   }
   bakeEnvironment();
 
-  // Terrain.
+  // Terrain heights, then the places: pick their spots and level the ground under them.
+  const heights = new Float32Array((N + 1) * (N + 1));
+  const pave = new Float32Array((N + 1) * (N + 1));
+  for (let iz = 0; iz <= N; iz++) {
+    for (let ix = 0; ix <= N; ix++) heights[iz * (N + 1) + ix] = terrainHeightRaw(-HALF + ix * CELL, -HALF + iz * CELL);
+  }
+  const sites = planSites(groundHeight, mulberry32(4242), WORLD.bound);
+  shapeGround(heights, pave, sites, N, CELL, HALF);
+
   const geo = new THREE.PlaneGeometry(S, S, N, N);
   geo.rotateX(-Math.PI / 2);
   geo.deleteAttribute('uv');
   const pos = geo.attributes.position;
-  const heights = new Float32Array((N + 1) * (N + 1));
   const forest = new Float32Array(pos.count);
+  const place = new Float32Array(pos.count);
   const gridIndex = new Int32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
-    const h = terrainHeightRaw(x, z);
-    pos.setY(i, h);
+    const g = Math.round((z + HALF) / CELL) * (N + 1) + Math.round((x + HALF) / CELL);
+    pos.setY(i, heights[g]);
     forest[i] = forestAt(x, z);
-    const ix = Math.round((x + HALF) / CELL);
-    const iz = Math.round((z + HALF) / CELL);
-    heights[iz * (N + 1) + ix] = h;
-    gridIndex[i] = iz * (N + 1) + ix;
+    place[i] = pave[g];
+    gridIndex[i] = g;
   }
   geo.setAttribute('aForest', new THREE.BufferAttribute(forest, 1));
+  geo.setAttribute('aPlace', new THREE.BufferAttribute(place, 1));
   geo.computeVertexNormals();
   const { sunVis, openSky } = bakeLight(heights);
   const bake = new Float32Array(pos.count * 2);
@@ -644,7 +660,7 @@ export function createWorld(scene, renderer) {
     const x = (rand() * 2 - 1) * WORLD.bound;
     const z = (rand() * 2 - 1) * WORLD.bound;
     const h = groundHeight(x, z);
-    if (h < 8 || h > 300 || slopeAt(x, z) > 0.5) continue;
+    if (h < 8 || h > 300 || slopeAt(x, z) > 0.5 || nearSite(sites, x, z, 25)) continue;
     const dense = forestAt(x, z);
     if (dense < 0.5 && rand() > 0.03) continue; // a few lone trees outside forests
     const pine = h > 120 ? rand() < 0.85 : rand() < 0.35;
@@ -666,65 +682,10 @@ export function createWorld(scene, renderer) {
   leafy.count = nl;
   scene.add(pines, leafy);
 
-  // A town on the flattest low ground near the middle.
-  let town = null;
-  // Buildings as boxes for collisions: the jet crashes into them and bullets stop on them.
-  const buildings = [];
-  const townBox = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
-  for (let i = 0; i < 400 && !town; i++) {
-    const ang = i * 2.39996;
-    const rad = 400 + i * 7;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
-    const h = groundHeight(x, z);
-    if (h < 10 || h > 90) continue;
-    const spread = [[300, 0], [-300, 0], [0, 300], [0, -300]].map(([dx, dz]) => Math.abs(groundHeight(x + dx, z + dz) - h));
-    if (Math.max(...spread) < 22) town = new THREE.Vector2(x, z);
-  }
-  if (town) {
-    const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-    const roofGeo = new THREE.ConeGeometry(0.75, 0.35, 4, 1).rotateY(Math.PI / 4).translate(0, 1.17, 0);
-    const blocks = new THREE.InstancedMesh(boxGeo, new THREE.MeshLambertMaterial({ color: '#ffffff' }), 400);
-    const roofs = new THREE.InstancedMesh(roofGeo, new THREE.MeshLambertMaterial({ color: '#ffffff' }), 400);
-    const walls = ['#b9b4aa', '#9a9690', '#c7c1b3', '#8b8f94', '#a59b8a', '#d1cbbd'].map((h) => new THREE.Color(h));
-    const roofColors = ['#7a3b2e', '#5d4a3f', '#6b6f73'].map((h) => new THREE.Color(h));
-    let b = 0;
-    let r = 0;
-    for (let gx = -12; gx <= 12; gx++) {
-      for (let gz = -12; gz <= 12; gz++) {
-        if (b >= blocks.count) break;
-        const d = Math.hypot(gx, gz) / 12;
-        if (d > 1 || rand() < d * 0.7 || gx % 4 === 0 || gz % 5 === 0) continue;
-        const x = town.x + gx * 38 + (rand() - 0.5) * 8;
-        const z = town.y + gz * 38 + (rand() - 0.5) * 8;
-        const h = groundHeight(x, z);
-        const tall = 8 + (1 - d) * (15 + rand() * 45);
-        const house = d > 0.45 && rand() < 0.7;
-        sc.set(14 + rand() * 12, house ? 7 + rand() * 4 : tall, 14 + rand() * 12);
-        const ang = (rand() - 0.5) * 0.1;
-        m.compose(p.set(x, h - 3, z), q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, ang), sc);
-        // Axis-aligned box around the slightly turned building (and its roof).
-        const ex = Math.abs(Math.cos(ang)) * sc.x / 2 + Math.abs(Math.sin(ang)) * sc.z / 2;
-        const ez = Math.abs(Math.sin(ang)) * sc.x / 2 + Math.abs(Math.cos(ang)) * sc.z / 2;
-        const box = { min: [x - ex, h - 3, z - ez], max: [x + ex, h - 3 + sc.y * (house ? 1.35 : 1), z + ez], flat: !house };
-        buildings.push(box);
-        for (let a = 0; a < 3; a++) {
-          townBox.min[a] = Math.min(townBox.min[a], box.min[a]);
-          townBox.max[a] = Math.max(townBox.max[a], box.max[a]);
-        }
-        blocks.setMatrixAt(b, m);
-        const lit = lightAt(x, z);
-        blocks.setColorAt(b++, tint.copy(walls[Math.floor(rand() * walls.length)]).multiplyScalar(lit));
-        if (house) {
-          roofs.setMatrixAt(r, m);
-          roofs.setColorAt(r++, tint.copy(roofColors[Math.floor(rand() * roofColors.length)]).multiplyScalar(lit));
-        }
-      }
-    }
-    blocks.count = b;
-    roofs.count = r;
-    scene.add(blocks, roofs);
-  }
+  // Town, airfield, base, industrial area, villages and radar station.
+  const { sets, rooftops } = buildPlaces(scene, sites, { groundHeight, lightAt, rand });
+  const townSite = sites.find((x) => x.kind === 'town');
+  const town = townSite ? new THREE.Vector2(townSite.x, townSite.z) : null;
 
   // Clouds: soft billboards, lit from above and hazed like everything else.
   const clouds = cloudLayer(scene, rand, look, haze);
@@ -778,29 +739,31 @@ export function createWorld(scene, renderer) {
 
   // Bullets: point where p0 to p1 hits a building, or null. Most bullets skip out at the town check.
   function buildingHit(p0, p1, out) {
-    if (!buildings.length) return null;
-    const lo = townBox.min;
-    const hi = townBox.max;
-    if (Math.max(p0.x, p1.x) < lo[0] || Math.min(p0.x, p1.x) > hi[0] || Math.min(p0.y, p1.y) > hi[1]
-      || Math.max(p0.z, p1.z) < lo[2] || Math.min(p0.z, p1.z) > hi[2]) return null;
     let best = 2;
-    for (const b of buildings) {
-      const t = segmentBox(p0, p1, b);
-      if (t >= 0 && t < best) best = t;
+    for (const set of sets) {
+      const lo = set.min;
+      const hi = set.max;
+      if (Math.max(p0.x, p1.x) < lo[0] || Math.min(p0.x, p1.x) > hi[0] || Math.min(p0.y, p1.y) > hi[1]
+        || Math.max(p0.z, p1.z) < lo[2] || Math.min(p0.z, p1.z) > hi[2]) continue;
+      for (const b of set.boxes) {
+        const t = segmentBox(p0, p1, b);
+        if (t >= 0 && t < best) best = t;
+      }
     }
     return best <= 1 ? out.copy(p0).lerp(p1, best) : null;
   }
 
   // The jet (or a spawn spot): is a sphere of this radius touching a building?
   function insideBuilding(p, radius) {
-    if (!buildings.length) return false;
-    if (p.x < townBox.min[0] - radius || p.x > townBox.max[0] + radius || p.y > townBox.max[1] + radius
-      || p.z < townBox.min[2] - radius || p.z > townBox.max[2] + radius) return false;
-    for (const b of buildings) {
-      const dx = Math.max(b.min[0] - p.x, 0, p.x - b.max[0]);
-      const dy = Math.max(b.min[1] - p.y, 0, p.y - b.max[1]);
-      const dz = Math.max(b.min[2] - p.z, 0, p.z - b.max[2]);
-      if (dx * dx + dy * dy + dz * dz < radius * radius) return true;
+    for (const set of sets) {
+      if (p.x < set.min[0] - radius || p.x > set.max[0] + radius || p.y > set.max[1] + radius
+        || p.z < set.min[2] - radius || p.z > set.max[2] + radius) continue;
+      for (const b of set.boxes) {
+        const dx = Math.max(b.min[0] - p.x, 0, p.x - b.max[0]);
+        const dy = Math.max(b.min[1] - p.y, 0, p.y - b.max[1]);
+        const dz = Math.max(b.min[2] - p.z, 0, p.z - b.max[2]);
+        if (dx * dx + dy * dy + dz * dz < radius * radius) return true;
+      }
     }
     return false;
   }
@@ -811,7 +774,8 @@ export function createWorld(scene, renderer) {
     town,
     buildingHit,
     insideBuilding,
-    rooftops: buildings.filter((b) => b.flat), // flat roofs soldiers can stand on
+    rooftops, // flat roofs soldiers can stand on
+    sites,
     sun,
     look,
     setLook,

@@ -86,6 +86,10 @@ export class Sfx {
     if (kill) this.burst(1.6, 320, 0.8);
   }
 
+  drop() {
+    this.burst(0.4, 420, 0.3);
+  }
+
   boom() {
     this.burst(2.2, 240, 1);
   }

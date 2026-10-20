@@ -2,7 +2,11 @@
 // Nose is -Z, up is +Y, right is +X. About 18 m long, 13.6 m span.
 import * as THREE from 'three';
 
-export const COCKPIT_LAYER = 1;
+export const COCKPIT_LAYER = 1; // pilot, seat, canopy: chase view only
+export const COCKPIT_VIEW_LAYER = 2; // panel, HUD glass, frame: cockpit view only
+
+// Where the cockpit camera sits, in jet space. The cockpit parts are placed around it.
+export const EYE = new THREE.Vector3(0, 0.95, -3.4);
 
 // Two-tone grey camo and panel lines, computed from object-space position so no UVs are needed.
 function camoPaint() {
@@ -206,6 +210,11 @@ function buildSide(side) {
   const m = missile();
   m.position.set(3.7, -0.5, 1.2);
   g.add(m);
+  // Inner pylon, used by the attack jet's bombs.
+  const inner = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.3, 1.0), DARK);
+  inner.position.set(2.4, -0.27, 0.8);
+  inner.visible = false;
+  g.add(inner);
 
   const nav = new THREE.Mesh(
     new THREE.SphereGeometry(0.08, 8, 6),
@@ -218,7 +227,7 @@ function buildSide(side) {
   nozzle.position.set(0.72, -0.02, 9.0);
   g.add(nozzle);
 
-  return { group: g, stab };
+  return { group: g, stab, missile: m, inner };
 }
 
 // Colors above 1 are brighter than white, so High mode's bloom makes them glow.
@@ -285,7 +294,103 @@ function buildModel() {
     }
   });
 
-  return { group: g, stabs: sides.map((s) => s.stab), flames, diamonds, glows, strobe };
+  return { group: g, stabs: sides.map((s) => s.stab), sides, flames, diamonds, glows, strobe };
+}
+
+// Cockpit seen from the pilot's seat: a dark panel under the HUD with a button block and a
+// small green screen, the HUD glass on two posts, and the canopy sills.
+function buttonPanelTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 200;
+  const g = c.getContext('2d');
+  g.fillStyle = '#16181a';
+  g.fillRect(0, 0, c.width, c.height);
+  const labels = [['NAV', 'COM1', 'COM2', 'IFF', 'LIST'], ['A-A', 'A-G', 'RTN', 'SEQ', '+/-']];
+  labels.forEach((row, r) => row.forEach((label, i) => {
+    const x = 18 + i * 98;
+    const y = 18 + r * 92;
+    g.fillStyle = '#2a2e32';
+    g.fillRect(x, y, 80, 70);
+    g.strokeStyle = '#4a5055';
+    g.lineWidth = 3;
+    g.strokeRect(x + 1.5, y + 1.5, 77, 67);
+    g.fillStyle = '#c9cfd2';
+    g.font = 'bold 20px B612, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(label, x + 40, y + 35);
+  }));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function buildCockpit() {
+  const g = new THREE.Group();
+  if (typeof document === 'undefined') return { group: g, glass: [], display: null };
+  const dark = new THREE.MeshStandardMaterial({ color: '#1b1e21', roughness: 0.85, metalness: 0.2 });
+  const E = EYE;
+
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.3, 0.42), dark);
+  shield.position.set(0, E.y - 0.47, E.z - 0.78);
+  g.add(shield);
+
+  const buttons = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.56, 0.22),
+    new THREE.MeshStandardMaterial({ map: buttonPanelTexture(), roughness: 0.8 }),
+  );
+  buttons.position.set(-0.1, E.y - 0.47, E.z - 0.567);
+  g.add(buttons);
+
+  // The small green screen shows live flight data.
+  const screen = document.createElement('canvas');
+  screen.width = 320;
+  screen.height = 200;
+  const screenTex = new THREE.CanvasTexture(screen);
+  screenTex.colorSpace = THREE.SRGBColorSpace;
+  const display = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.14), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+  display.position.set(0.31, E.y - 0.46, E.z - 0.566);
+  g.add(display);
+
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.38, 0.022), dark);
+    post.position.set(side * 0.237, E.y - 0.13, E.z - 0.78);
+    post.rotation.x = -0.1;
+    g.add(post);
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 1.5), dark);
+    sill.position.set(side * 0.5, E.y - 0.36, E.z - 0.15);
+    g.add(sill);
+  }
+
+  // HUD glass: a faint pane with a thin frame and a curved top. The HUD is drawn only inside it.
+  const outline = new THREE.Shape();
+  // Top stays put; the glass reaches further down.
+  outline.moveTo(-0.23, -0.27);
+  outline.lineTo(0.23, -0.27);
+  outline.lineTo(0.23, 0.09);
+  outline.quadraticCurveTo(0, 0.21, -0.23, 0.09);
+  outline.lineTo(-0.23, -0.27);
+  const pts = outline.getPoints(16);
+  const glassGroup = new THREE.Group();
+  // Centered a little above eye level, so the gun reticle sits mid-glass with room above.
+  glassGroup.position.set(0, E.y + 0.04, E.z - 0.78);
+  glassGroup.rotation.x = -0.1;
+  glassGroup.add(new THREE.Mesh(
+    new THREE.ShapeGeometry(outline, 16),
+    new THREE.MeshBasicMaterial({ color: '#a8d8cc', transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide }),
+  ));
+  glassGroup.add(new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: '#c9d1d0', transparent: true, opacity: 0.55 }),
+  ));
+  g.add(glassGroup);
+  const glass = pts.map((p) => new THREE.Vector3(p.x, p.y, 0).applyMatrix4(
+    new THREE.Matrix4().compose(glassGroup.position, new THREE.Quaternion().setFromEuler(glassGroup.rotation), new THREE.Vector3(1, 1, 1)),
+  ));
+
+  g.traverse((o) => o.layers.set(COCKPIT_VIEW_LAYER));
+  return { group: g, glass, display: { canvas: screen, texture: screenTex } };
 }
 
 class Trail {
@@ -334,9 +439,68 @@ export class Jet {
     this.diamonds = parts.diamonds;
     this.glows = parts.glows;
     this.strobe = parts.strobe;
+    this.sides = parts.sides;
+    this.bombsOnWings = [];
     this.flame = 0.4;
     this.trails = [new Trail(scene), new Trail(scene)];
     scene.add(this.group);
+    const cockpit = buildCockpit();
+    this.group.add(cockpit.group);
+    this.glassLocal = cockpit.glass;
+    this.glassWorld = cockpit.glass.map((p) => p.clone());
+    this.display = cockpit.display;
+  }
+
+  // The attack jet carries up to four bombs under the wings, outer pylons first.
+  mountBombs(geometry, material) {
+    const spots = [[-3.7, -0.62, 1.1], [3.7, -0.62, 1.1], [-2.4, -0.62, 0.7], [2.4, -0.62, 0.7]];
+    for (const [x, y, z] of spots) {
+      const b = new THREE.Mesh(geometry, material);
+      b.position.set(x, y, z);
+      b.castShadow = true;
+      b.visible = false;
+      this.group.add(b);
+      this.bombsOnWings.push(b);
+    }
+  }
+
+  setType(type) {
+    const attack = type === 'attack';
+    this.type = type;
+    // Greener camo for the attack jet.
+    PAINT.color.set(attack ? '#c6d3b6' : '#ffffff');
+    for (const s of this.sides) {
+      s.missile.visible = !attack;
+      s.inner.visible = attack;
+    }
+    this.setBombCount(attack ? this.bombsOnWings.length : 0);
+  }
+
+  // Show as many bombs on the wings as are left (they drop alternating sides).
+  setBombCount(n) {
+    const count = this.type === 'attack' ? n : 0;
+    this.bombsOnWings.forEach((b, i) => (b.visible = i < count));
+  }
+
+  // HUD glass outline in world space, for clipping the HUD in cockpit view.
+  glassPoints() {
+    this.group.updateMatrixWorld();
+    this.glassLocal.forEach((p, i) => this.glassWorld[i].copy(p).applyMatrix4(this.group.matrixWorld));
+    return this.glassWorld;
+  }
+
+  // Draw lines of text on the small green cockpit screen.
+  setDisplay(lines) {
+    if (!this.display) return;
+    const { canvas, texture } = this.display;
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#020702';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    g.fillStyle = '#7dff6a';
+    g.font = 'bold 30px "B612 Mono", monospace';
+    g.textBaseline = 'top';
+    lines.slice(0, 5).forEach((l, i) => g.fillText(l, 14, 12 + i * 37));
+    texture.needsUpdate = true;
   }
 
   sync(fm, cmd) {

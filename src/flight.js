@@ -31,6 +31,24 @@ export const TUNING = {
   ceiling: 1700,
 };
 
+// The two jets. The fighter uses TUNING as written; the attack jet is slower, heavier and turns
+// wider, and carries bombs.
+const BASE_TUNING = { ...TUNING };
+export const JET_TYPES = {
+  fighter: { name: 'Fighter', summary: 'Fast and agile. Machine gun only.', tuning: {} },
+  attack: {
+    name: 'Attack jet',
+    summary: 'Slower and heavier, turns wider. Machine gun on 1, bombs on 2.',
+    tuning: {
+      cruiseKmh: 380, fastKmh: 520, maxKmh: 640, sweetLowKmh: 330, sweetHighKmh: 430,
+      pitchRate: 52, rollRate: 150, yawRate: 26, boostAccel: 15, throttleAccel: 7,
+    },
+  },
+};
+export function applyJetType(type) {
+  Object.assign(TUNING, BASE_TUNING, (JET_TYPES[type] || JET_TYPES.fighter).tuning);
+}
+
 const X = new THREE.Vector3(1, 0, 0);
 const Y = new THREE.Vector3(0, 1, 0);
 const Z = new THREE.Vector3(0, 0, 1);

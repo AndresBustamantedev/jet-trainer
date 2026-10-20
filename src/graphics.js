@@ -7,6 +7,11 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
+// A page can start in a 0-sized window (a hidden tab or a pane still opening). Zero-sized
+// render targets are invalid, so sizes never go below 1 pixel.
+const viewW = () => Math.max(1, innerWidth);
+const viewH = () => Math.max(1, innerHeight);
+
 export function createGraphics({ renderer, scene, camera, world }) {
   let high = true;
   let composer = null;
@@ -17,17 +22,19 @@ export function createGraphics({ renderer, scene, camera, world }) {
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
     composer = new EffectComposer(renderer, target);
     composer.addPass(new RenderPass(scene, camera));
-    bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), world.look.bloom, 0.5, 0.92);
+    bloom = new UnrealBloomPass(new THREE.Vector2(viewW(), viewH()), world.look.bloom, 0.5, 0.92);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
     resize();
   }
 
   function resize() {
-    renderer.setSize(innerWidth, innerHeight, false);
+    renderer.setSize(viewW(), viewH(), false);
+    camera.aspect = viewW() / viewH();
+    camera.updateProjectionMatrix();
     if (composer) {
       composer.setPixelRatio(renderer.getPixelRatio());
-      composer.setSize(innerWidth, innerHeight);
+      composer.setSize(viewW(), viewH());
     }
   }
 
