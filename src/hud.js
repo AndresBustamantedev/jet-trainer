@@ -1,12 +1,14 @@
 // 2D HUD drawn on its own canvas over the 3D scene.
 import * as THREE from 'three';
 import { TUNING } from './flight.js';
+import { BOMBS } from './bombs.js';
 
 const INK = '#e2fbef';
 const BEST = '#8effc7';
 const GLASS_INK = '#c9f26a'; // HUD symbology on the cockpit glass
 const GLASS_BEST = '#f4ffb8';
 const WARN = '#ffb547';
+const BOMB_AIM = '#f5d33c'; // the game's bomb aim aid, not jet symbology
 const DANGER = '#ff5d4d';
 const FONT = "'B612', system-ui, sans-serif"; // Airbus's cockpit display typeface
 const DEG = Math.PI / 180;
@@ -120,6 +122,7 @@ export class Hud {
     ctx.shadowBlur = 4;
     ctx.strokeStyle = this.ink;
     this.targets(s);
+    this.bombCircle(s);
 
     ctx.save();
     if (poly) {
@@ -227,30 +230,29 @@ export class Hud {
   }
 
   // Gun reticle where the bullets go, hit markers and heat.
-  // Bombs selected: a small cross where the nose points and the impact circle where a bomb
-  // dropped now would land, joined by a line (you fly the circle onto the target).
-  bombHud(s, x, y) {
-    const { ctx } = this;
-    ctx.beginPath();
-    ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y);
-    ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7);
-    ctx.stroke();
+  // Bomb aim: a big thin yellow circle where a bomb dropped now would land. It is the game
+  // helping you, not part of the jet's HUD, so it is drawn over the world and never clipped
+  // to the glass. It is at least the blast size on screen, and never tiny.
+  bombCircle(s) {
     const b = s.bombs;
-    const p = b.impact && this.project(s.camera, b.impact);
-    if (p) {
-      ctx.save();
-      ctx.globalAlpha = 0.5 * this.alpha;
-      ctx.setLineDash([4, 5]);
-      this.line([x, y], p);
-      ctx.restore();
-      ctx.beginPath();
-      ctx.arc(p[0], p[1], 11, 0, Math.PI * 2);
-      ctx.moveTo(p[0] + 2, p[1]);
-      ctx.arc(p[0], p[1], 2, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    const label = b.ammo > 0 ? `Bombs ${b.ammo}/${b.capacity}` : 'Bombs reloading';
-    this.text(label, x, y + 30, { size: 13, weight: 700, align: 'center', color: b.ammo > 0 ? this.ink : WARN });
+    if (!b || !b.selected || !b.impact || s.crashed) return;
+    const p = this.project(s.camera, b.impact);
+    if (!p) return;
+    _v.copy(b.impact).sub(s.camera.position);
+    const dist = _v.length();
+    const pxPerM = (this.h / 2) / Math.tan((s.camera.fov * DEG) / 2) / Math.max(dist, 1);
+    const r = Math.min(this.h * 0.2, Math.max(this.h * 0.04, BOMBS.radius * pxPerM));
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = BOMB_AIM;
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 3;
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   gunHud(s) {
@@ -259,8 +261,8 @@ export class Hud {
     if (!g) return;
     const [x, y] = g;
     if (s.bombs && s.bombs.selected) {
-      this.bombHud(s, x, y);
-      if (s.killAge < 1.6) this.text('Target destroyed', x, y + 50, { size: 16, weight: 700, align: 'center', color: DANGER });
+      // No gun reticle with bombs selected; the bomb circle is drawn over the world instead.
+      if (s.killAge < 1.6) this.text('Target destroyed', x, y + 46, { size: 16, weight: 700, align: 'center', color: DANGER });
       return;
     }
     ctx.beginPath();
