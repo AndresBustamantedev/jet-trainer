@@ -2,15 +2,18 @@
 // Everything respawns a few seconds after being destroyed.
 import * as THREE from 'three';
 import { Explosion } from './jet.js';
-import { WORLD } from './world.js';
+import { WORLD, coloredMerge } from './world.js';
 
 const DRONES = 6;
 const TANKS = 6;
 const AA_GUNS = 3;
+const SOLDIERS = 24;
+// center: hitbox height above the ground. drive: patrol length in m, taken by driveChance of them.
 const KINDS = {
   air: { radius: 5.5, health: 100, respawn: 5 },
-  tank: { radius: 4, health: 150, respawn: 8 },
-  aa: { radius: 3.5, health: 90, respawn: 8 },
+  tank: { radius: 6, health: 150, respawn: 8, center: 2.4, speed: 7, drive: 220, driveChance: 0.5 },
+  aa: { radius: 5.5, health: 90, respawn: 8, center: 2.9, speed: 0, drive: 0, driveChance: 0 },
+  soldier: { radius: 0.9, health: 9, respawn: 10, center: 0.9, speed: 1.4, drive: 30, driveChance: 0.5 },
 };
 
 const _a = new THREE.Vector3();
@@ -69,6 +72,7 @@ function tankModel() {
   g.add(turret);
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   g.userData.turret = turret;
+  g.scale.setScalar(1.5); // about 10 m long, like a real main battle tank
   return g;
 }
 
@@ -96,7 +100,30 @@ function aaModel() {
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   g.userData.mount = mount;
   g.userData.pivot = pivot;
+  g.scale.setScalar(1.6);
   return g;
+}
+
+// A 1.8 m soldier in one mesh: legs, body, arms, head, helmet and a rifle.
+let soldierGeo = null;
+const soldierMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+function soldierModel() {
+  if (!soldierGeo) {
+    const olive = '#4f5638';
+    soldierGeo = coloredMerge([
+      [new THREE.BoxGeometry(0.16, 0.85, 0.22).translate(-0.11, 0.42, 0), '#3c412c'],
+      [new THREE.BoxGeometry(0.16, 0.85, 0.22).translate(0.11, 0.42, 0), '#3c412c'],
+      [new THREE.BoxGeometry(0.5, 0.62, 0.3).translate(0, 1.17, 0), olive],
+      [new THREE.BoxGeometry(0.12, 0.55, 0.14).translate(-0.31, 1.15, -0.08), olive],
+      [new THREE.BoxGeometry(0.12, 0.55, 0.14).translate(0.31, 1.15, -0.08), olive],
+      [new THREE.SphereGeometry(0.12, 10, 8).translate(0, 1.6, 0), '#c49a76'],
+      [new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 1.64, 0), '#3f4530'],
+      [new THREE.BoxGeometry(0.06, 0.08, 0.85).translate(0.18, 1.12, -0.35), '#232421'],
+    ]);
+  }
+  const m = new THREE.Mesh(soldierGeo, soldierMat);
+  m.castShadow = true;
+  return m;
 }
 
 export class Targets {
@@ -118,6 +145,7 @@ export class Targets {
     add('air', DRONES, droneModel);
     add('tank', TANKS, tankModel);
     add('aa', AA_GUNS, aaModel);
+    add('soldier', SOLDIERS, soldierModel);
   }
 
   spawn(t) {
@@ -142,13 +170,29 @@ export class Targets {
     return out.set(0, Math.max(this.groundHeight(0, 0), 0), 0);
   }
 
+  // Soldiers stand in small groups near a tank or AA gun, or anywhere near the town.
+  soldierSpot(out) {
+    const anchors = this.list.filter((o) => o.alive && (o.kind === 'tank' || o.kind === 'aa'));
+    for (let i = 0; i < 40 && anchors.length; i++) {
+      const a = anchors[Math.floor(Math.random() * anchors.length)];
+      const ang = Math.random() * Math.PI * 2;
+      const d = 12 + Math.random() * 35;
+      const x = a.start.x + Math.cos(ang) * d;
+      const z = a.start.z + Math.sin(ang) * d;
+      const h = this.groundHeight(x, z);
+      if (h > 4 && !this.world.insideBuilding(out.set(x, h + 1, z), 2)) return out.set(x, h, z);
+    }
+    return this.groundSpot(out);
+  }
+
   spawnGround(t) {
-    t.start = this.groundSpot(t.start || new THREE.Vector3());
+    t.start = t.kind === 'soldier' ? this.soldierSpot(t.start || new THREE.Vector3()) : this.groundSpot(t.start || new THREE.Vector3());
     t.heading = Math.random() * Math.PI * 2;
     t.dirX = -Math.sin(t.heading);
     t.dirZ = -Math.cos(t.heading);
-    // Half the tanks drive back and forth over 220 m, the rest and the AA guns stand still.
-    t.drive = t.kind === 'tank' && Math.random() < 0.5 && this.groundHeight(t.start.x + t.dirX * 220, t.start.z + t.dirZ * 220) > 6 ? 220 : 0;
+    // Some tanks and soldiers patrol back and forth, the rest and the AA guns stand still.
+    const end = this.groundHeight(t.start.x + t.dirX * t.drive, t.start.z + t.dirZ * t.drive);
+    t.patrol = t.drive && Math.random() < t.driveChance && end > 4 ? t.drive : 0;
     t.s = 0;
     t.sDir = 1;
     if (t.kind === 'tank') t.mesh.userData.turret.rotation.y = (Math.random() - 0.5) * 2;
@@ -161,8 +205,8 @@ export class Targets {
     const h = this.groundHeight(x, z);
     t.mesh.position.set(x, h - 0.1, z);
     t.mesh.rotation.y = t.heading + (t.sDir < 0 ? Math.PI : 0);
-    t.pos.set(x, h + (t.kind === 'tank' ? 1.6 : 1.8), z);
-    const v = t.drive ? 7 * t.sDir : 0;
+    t.pos.set(x, h + t.center, z);
+    const v = t.patrol ? t.speed * t.sDir : 0;
     t.vel.set(t.dirX * v, 0, t.dirZ * v);
   }
 
@@ -217,11 +261,11 @@ export class Targets {
       if (t.kind === 'air') {
         t.theta += (t.dir * t.speed / t.R) * dt;
         this.place(t);
-      } else if (t.kind === 'tank') {
-        if (t.drive) {
-          t.s += 7 * t.sDir * dt;
-          if (t.s > t.drive || t.s < 0) {
-            t.s = Math.min(t.drive, Math.max(0, t.s));
+      } else if (t.kind !== 'aa') {
+        if (t.patrol) {
+          t.s += t.speed * t.sDir * dt;
+          if (t.s > t.patrol || t.s < 0) {
+            t.s = Math.min(t.patrol, Math.max(0, t.s));
             t.sDir *= -1;
           }
           this.placeGround(t);
@@ -256,7 +300,7 @@ export class Targets {
     t.alive = false;
     t.mesh.visible = false;
     t.timer = t.respawn;
-    this.explosions[this.nextExplosion++ % this.explosions.length].start(t.pos);
+    this.explosions[this.nextExplosion++ % this.explosions.length].start(t.pos, t.kind === 'soldier' ? 0.12 : 1);
     return true;
   }
 

@@ -470,7 +470,7 @@ function cloudLayer(scene, rand, look, haze) {
 }
 
 // Merge parts that each have one flat color into a single geometry with vertex colors.
-function coloredMerge(parts) {
+export function coloredMerge(parts) {
   const geos = parts.map(([geo, hex]) => {
     const g = geo.index ? geo.toNonIndexed() : geo;
     const c = new THREE.Color(hex);

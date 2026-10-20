@@ -203,6 +203,8 @@ export class Hud {
     for (const t of s.targetList) {
       if (!t.alive) continue;
       const dist = t.pos.distanceTo(s.fm.position);
+      const soldier = t.kind === 'soldier';
+      if (soldier && dist > 2000) continue; // only nearby soldiers, so the screen stays readable
       const p = this.project(cam, t.pos);
       const onScreen = p && p[0] > 20 && p[0] < this.w - 20 && p[1] > 20 && p[1] < this.h - 20;
       ctx.save();
@@ -215,12 +217,13 @@ export class Hud {
         if (t.kind === 'air') {
           ctx.moveTo(x, yy - 6); ctx.lineTo(x + 6, yy); ctx.lineTo(x, yy + 6); ctx.lineTo(x - 6, yy);
         } else {
-          ctx.rect(x - 4.5, yy - 4.5, 9, 9); // ground targets get a square
+          const r = soldier ? 2.5 : 4.5; // ground targets get a square, soldiers a small one
+          ctx.rect(x - r, yy - r, r * 2, r * 2);
         }
         ctx.closePath();
         ctx.fill();
-        this.text(`${Math.round(dist)} m`, x, yy - 16, { size: 12, align: 'center', color: DANGER });
-      } else {
+        if (!soldier) this.text(`${Math.round(dist)} m`, x, yy - 16, { size: 12, align: 'center', color: DANGER });
+      } else if (!soldier) {
         _v.copy(t.pos).applyMatrix4(cam.matrixWorldInverse);
         const ang = Math.atan2(-_v.y, _v.x);
         const rx = this.w / 2 - 40;

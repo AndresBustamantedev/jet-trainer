@@ -392,8 +392,9 @@ export class Explosion {
     scene.add(this.group);
   }
 
-  start(pos) {
+  start(pos, size = 1) {
     this.group.position.copy(pos);
+    this.group.scale.setScalar(size);
     this.t = 0;
     this.group.visible = true;
     this.update(0);
