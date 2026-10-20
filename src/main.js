@@ -33,7 +33,7 @@ const explosion = new Explosion(scene);
 const fm = new FlightModel();
 const controls = new Controls();
 const hud = new Hud(document.getElementById('hud'));
-const targets = new Targets(scene, world);
+const targets = new Targets(scene, world, controls.config.units);
 const gun = new Gun(scene, world);
 const bombs = new Bombs(scene, world, targets);
 jet.mountBombs(bombGeometry(), bombMaterial);
@@ -278,6 +278,7 @@ createTuner({ world, graphics });
 const menu = createMenu(document.getElementById('menu'), controls, {
   onFly: () => requestFly(false),
   onQuality: (mode) => graphics.setQuality(mode),
+  onUnits: (level) => targets.setUnits(level),
   onJetType: (type) => {
     setJetType(type);
     respawn();

@@ -1,6 +1,6 @@
 # Jet trainer
 
-A browser practice range for Battlefield 6 style jet flying: a fighter and an attack jet with bombs, BF6 control presets you can rebind, and drones, tanks, AA guns and soldiers to shoot. Three.js from a CDN, no build step, no installs.
+A browser practice range for Battlefield 6 style jet flying: a fighter and an attack jet with bombs, BF6 control presets you can rebind, and drones, tanks, AA guns, field guns and soldiers to shoot. Three.js from a CDN, no build step, no installs.
 
 Play it at **https://adarkeser.com/jet/**.
 
@@ -25,7 +25,7 @@ Open http://127.0.0.1:8137. ES modules do not load from `file://`, so a server i
 - `src/jet.js`: jet model built in code (lofted fuselage, airfoil wings, camo shader), afterburner, wingtip vapor, crash effect.
 - `src/weapons.js`: nose cannon. Rate, damage, bullet speed and overheat are in `GUN` at the top.
 - `src/bombs.js`: the attack jet's unguided bombs, blast damage and the impact prediction the HUD shows. Numbers are in `BOMBS` at the top.
-- `src/targets.js`: orange drones flying circles and weaves, tanks (some driving) and AA guns that track the jet. All respawn after a kill.
+- `src/targets.js`: orange drones flying circles and weaves, and a garrison at every place: tanks (some driving), AA guns that track the jet, field guns and soldiers. Counts per place are in `GARRISON` at the top, one set for each menu setting (Ground units: Few or Many). Ground units beyond 1.5 km (`SEE`) are not drawn, and every part type draws as one instanced batch, so unit counts barely cost draw calls. All respawn after a kill.
 - `src/audio.js`: procedural gun, hit, explosion and engine sounds (no audio files).
 - `src/graphics.js`: rendering and the Performance and High modes (bloom, shadow quality, tree and cloud counts, resolution cap).
 - `src/tuner.js`: look tuner, shown only with `?tune` in the address. Sliders for exposure, sun, sky fill, haze and bloom, with a copy button for the values.

@@ -18,7 +18,7 @@ function setFullscreen(on) {
   else (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
 }
 
-export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
+export function createMenu(root, controls, { onFly, onQuality, onJetType, onUnits }) {
   let waiting = null; // { action, slot } while rebinding
   let message = '';
   let leaveTimer = 0;
@@ -165,6 +165,7 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
             <li>
               <h2>Graphics and sound</h2>
               ${line('Graphics', [['performance', 'Performance'], ['high', 'High']].map(([v, label]) => `<button class="pick" data-quality="${v}" aria-pressed="${c.quality === v}">${label}</button>`).join(''))}
+              ${line('Ground units', [['few', 'Few'], ['many', 'Many']].map(([v, label]) => `<button class="pick" data-units="${v}" aria-pressed="${c.units === v}">${label}</button>`).join(''))}
               ${checkbox('sound', 'Sound', c.sound)}
               ${canFullscreen ? checkbox('fullscreen', 'Full screen', isFullscreen()) : ''}
             </li>
@@ -209,6 +210,13 @@ export function createMenu(root, controls, { onFly, onQuality, onJetType }) {
       c.qualityChosen = true;
       controls.save();
       onQuality(c.quality);
+      render();
+    }));
+    root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
+      if (c.units === b.dataset.units) return;
+      c.units = b.dataset.units;
+      controls.save();
+      onUnits(c.units);
       render();
     }));
     root.querySelector('#fullscreen')?.addEventListener('change', (e) => setFullscreen(e.target.checked));

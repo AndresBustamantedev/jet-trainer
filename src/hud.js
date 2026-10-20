@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { TUNING } from './flight.js';
 import { BOMBS } from './bombs.js';
+import { SEE } from './targets.js';
 
 const INK = '#e2fbef';
 const BEST = '#8effc7';
@@ -321,12 +322,17 @@ export class Hud {
   targets(s) {
     const { ctx } = this;
     const cam = s.camera;
+    // Edge arrows only for the nearest few targets, or a full island of them rings the screen.
+    const arrows = new Set(s.targetList.filter((t) => t.alive && t.kind !== 'soldier')
+      .sort((a, b) => a.pos.distanceToSquared(s.fm.position) - b.pos.distanceToSquared(s.fm.position)).slice(0, 6));
     for (const t of s.targetList) {
       if (!t.alive) continue;
       const dist = t.pos.distanceTo(s.fm.position);
       const soldier = t.kind === 'soldier';
-      // Only nearby soldiers and drones get markers, so the screen stays readable.
-      if ((soldier || t.kind === 'air') && dist > 2000) continue;
+      // Only nearby soldiers and drones get markers, and vehicles within drawing range,
+      // so the screen stays readable.
+      if ((soldier || t.kind === 'air') && dist > 2000 && !arrows.has(t)) continue;
+      if (dist > SEE && !arrows.has(t)) continue;
       const p = this.project(cam, t.pos);
       const onScreen = p && p[0] > 20 && p[0] < this.w - 20 && p[1] > 20 && p[1] < this.h - 20;
       ctx.save();
@@ -345,7 +351,7 @@ export class Hud {
         ctx.closePath();
         ctx.fill();
         if (!soldier) this.text(`${Math.round(dist)} m`, x, yy - 16, { size: 12, align: 'center', color: DANGER });
-      } else if (!soldier) {
+      } else if (arrows.has(t)) {
         _v.copy(t.pos).applyMatrix4(cam.matrixWorldInverse);
         const ang = Math.atan2(-_v.y, _v.x);
         const rx = this.w / 2 - 40;

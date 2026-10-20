@@ -199,6 +199,7 @@ function presetConfig(id, base = {}) {
     spaceFire: true, // saved settings from before Space could fire get it once on load
     quality: base.quality === 'performance' || base.quality === 'high' ? base.quality : DEFAULT_QUALITY,
     qualityChosen: base.qualityChosen ?? false, // true once the player picks a mode themselves
+    units: base.units === 'few' ? 'few' : 'many', // how many tanks, guns and soldiers hold the places
     keys,
     pad: padBindings(base.pad),
     padSensPitch: base.padSensPitch ?? 1,
