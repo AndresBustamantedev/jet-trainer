@@ -26,6 +26,8 @@ export class Hud {
     this.time = 0;
     this.ink = INK;
     this.best = BEST;
+    this.k = 1; // text scale
+    this.alpha = 1; // opacity of the flight symbols
     this.L = null;
     this.resize();
     addEventListener('resize', () => this.resize());
@@ -60,7 +62,7 @@ export class Hud {
 
   text(str, x, y, { size = 14, weight = 500, align = 'left', color = this.ink, base = 'middle' } = {}) {
     const ctx = this.ctx;
-    ctx.font = `${weight} ${size}px ${FONT}`;
+    ctx.font = `${weight} ${Math.round(size * this.k)}px ${FONT}`;
     ctx.textAlign = align;
     ctx.textBaseline = base;
     ctx.fillStyle = color;
@@ -76,7 +78,7 @@ export class Hud {
       if (poly.some((q) => !q)) poly = null;
     }
     if (!poly) {
-      this.L = { cx: this.w / 2, cy: this.h / 2, tapeOff: Math.min(this.w * 0.27, 380), tapeH: 320, headY: 54, glass: false };
+      this.L = { cx: this.w / 2, cy: this.h / 2, tapeOff: Math.min(this.w * 0.27, 380), tapeH: 320, headY: 54, glass: false, k: 1 };
       this.ink = INK;
       this.best = BEST;
       return null;
@@ -96,6 +98,7 @@ export class Hud {
       tapeH: Math.min(320, gh * 0.55),
       headY: minY + gh * 0.13,
       glass: true,
+      k: Math.min(0.85, Math.max(0.68, gh / 420)),
       minX, maxX, minY, maxY,
     };
     this.ink = GLASS_INK;
@@ -122,8 +125,13 @@ export class Hud {
       poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.closePath();
       ctx.clip();
-      ctx.shadowColor = 'rgba(190, 255, 110, 0.35)';
-      ctx.shadowBlur = 3;
+      // Thinner, smaller and see-through on the glass so the view stays clear.
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 2;
+      ctx.lineWidth = 1.1;
+      this.k = this.L.k;
+      this.alpha = 0.72;
+      ctx.globalAlpha = this.alpha;
     }
     // Looking away from the glass in cockpit view (free look): no flight symbols at all.
     const offGlass = s.cameraMode === 'cockpit' && s.glass && !s.crashed && !poly;
@@ -138,6 +146,8 @@ export class Hud {
       this.headingTape(s);
     }
     if (poly) this.glassStatus(s);
+    this.k = 1;
+    this.alpha = 1;
     ctx.restore();
 
     ctx.strokeStyle = this.ink;
@@ -168,7 +178,7 @@ export class Hud {
       const len = R * Math.tan((p === 0 ? 24 : 8) * DEG);
       const pts = [gap, len, -gap, -len].map((o) => this.project(cam, _v.copy(_c).addScaledVector(_r, o)));
       if (pts.some((q) => !q)) continue;
-      ctx.globalAlpha = p === 0 ? 0.9 : 0.7;
+      ctx.globalAlpha = (p === 0 ? 0.9 : 0.7) * this.alpha;
       ctx.setLineDash(p < 0 ? [7, 5] : []);
       this.line(pts[0], pts[1]);
       this.line(pts[2], pts[3]);
@@ -182,7 +192,7 @@ export class Hud {
       }
     }
     ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = this.alpha;
   }
 
   markers(s) {
@@ -200,7 +210,7 @@ export class Hud {
     if (s.aimDir) {
       const aim = this.dirPoint(s.camera, s.aimDir);
       if (aim) {
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = (0.85) * this.alpha;
         ctx.beginPath();
         ctx.arc(aim[0], aim[1], 20, 0, Math.PI * 2);
         ctx.stroke();
@@ -208,7 +218,7 @@ export class Hud {
         ctx.arc(aim[0], aim[1], 1.8, 0, Math.PI * 2);
         ctx.fillStyle = this.ink;
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = this.alpha;
       }
     }
   }
@@ -248,9 +258,9 @@ export class Hud {
     if (s.gun.heat > 0.01) {
       const bw = 80;
       const over = s.gun.overheated;
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = (0.5) * this.alpha;
       ctx.strokeRect(x - bw / 2, y + 26, bw, 5);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = this.alpha;
       ctx.fillStyle = over ? DANGER : s.gun.heat > 0.75 ? WARN : this.ink;
       ctx.fillRect(x - bw / 2, y + 26, bw * s.gun.heat, 5);
       if (over && s.killAge >= 1.6) this.text('Overheated', x, y + 46, { size: 14, weight: 600, align: 'center', color: DANGER });
@@ -296,7 +306,7 @@ export class Hud {
         ctx.beginPath();
         ctx.moveTo(10, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7);
         ctx.closePath();
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = (0.85) * this.alpha;
         ctx.fill();
       }
       ctx.restore();
@@ -338,6 +348,7 @@ export class Hud {
 
   valueBox(x, y, w, str, color, align) {
     const { ctx } = this;
+    w *= this.k;
     ctx.fillStyle = 'rgba(6, 18, 14, 0.55)';
     ctx.fillRect(x, y - 15, w, 30);
     ctx.strokeStyle = color;
@@ -359,9 +370,9 @@ export class Hud {
     ctx.clip();
     const yOf = (v) => cy + (kmh - v) * ppu;
     ctx.fillStyle = this.best;
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = (0.85) * this.alpha;
     ctx.fillRect(x + 3, yOf(T.sweetHighKmh), 4, yOf(T.sweetLowKmh) - yOf(T.sweetHighKmh));
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = this.alpha;
     this.line([x, cy - H / 2], [x, cy + H / 2]);
     const span = H / 2 / ppu;
     for (let v = Math.floor((kmh - span) / 10) * 10; v <= kmh + span; v += 10) {
@@ -431,11 +442,11 @@ export class Hud {
   glassStatus(s) {
     const { cx, minY, maxY, tapeOff } = this.L;
     const fm = s.fm;
-    const y = minY + (maxY - minY) * 0.86;
+    const y = minY + (maxY - minY) * 0.84;
     const thr = fm.boost ? 'AB' : fm.throttle > 0 ? 'MIL' : fm.throttle < 0 ? 'BRK' : 'CRZ';
     const left = [`M ${(fm.kmh / 1225).toFixed(2)}`, `G ${fm.g.toFixed(1)}`, thr];
-    const gun = s.gun.overheated ? 'GUN OVHT' : s.gun.heat > 0.75 ? 'GUN HOT' : 'CANNON RDY';
-    const right = [`AL ${Math.max(0, Math.round(s.agl))}`, gun, `TURN ${Math.round(fm.turnEff * 100)}`];
+    const gun = s.gun.overheated ? 'GUN OVHT' : s.gun.heat > 0.75 ? 'GUN HOT' : '';
+    const right = [`AL ${Math.max(0, Math.round(s.agl))}`, `TURN ${Math.round(fm.turnEff * 100)}`, gun].filter(Boolean);
     const font = { size: 12, weight: 700 };
     left.forEach((t, i) => this.text(t, cx - tapeOff + 4, y + i * 15, { ...font, color: i === 2 && fm.boost ? WARN : this.ink }));
     right.forEach((t, i) => this.text(t, cx + tapeOff - 4, y + i * 15, { ...font, align: 'right', color: t.startsWith('GUN ') ? WARN : this.ink }));
@@ -473,11 +484,11 @@ export class Hud {
     // Stick box: roll left/right, pitch up/down.
     const bx = cx - 70;
     const r = 30;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = (0.5) * this.alpha;
     ctx.strokeRect(bx - r, by - r, r * 2, r * 2);
     this.line([bx - r, by], [bx + r, by]);
     this.line([bx, by - r], [bx, by + r]);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = this.alpha;
     ctx.beginPath();
     ctx.arc(bx + cmd.roll * r, by - cmd.pitch * r, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = this.ink;
@@ -487,9 +498,9 @@ export class Hud {
     // Yaw bar.
     const yx = cx + 30;
     const yw = 46;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = (0.5) * this.alpha;
     ctx.strokeRect(yx - yw, by - 5, yw * 2, 10);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = this.alpha;
     ctx.fillStyle = this.ink;
     ctx.fillRect(Math.min(yx, yx + cmd.yaw * yw), by - 5, Math.abs(cmd.yaw * yw), 10);
     this.line([yx, by - 9], [yx, by + 9]);
@@ -497,9 +508,9 @@ export class Hud {
 
     // Throttle state.
     const tx = cx + 110;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = (0.5) * this.alpha;
     ctx.strokeRect(tx - 5, by - r, 10, r * 2);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = this.alpha;
     ctx.fillStyle = cmd.boost ? WARN : this.ink;
     if (cmd.boost) ctx.fillRect(tx - 5, by - r, 10, r);
     else if (cmd.throttle !== 0) ctx.fillRect(tx - 5, cmd.throttle > 0 ? by - r * 0.6 : by, 10, r * 0.6);
@@ -518,10 +529,10 @@ export class Hud {
     let y = cy + 120;
     for (const [msg, level] of s.warnings) {
       const blink = level === 'danger' && Math.sin(this.time * 16) < 0;
-      this.ctx.globalAlpha = blink ? 0.35 : 1;
+      this.ctx.globalAlpha = (blink ? 0.35 : 1) * this.alpha;
       this.text(msg, cx, y, { size: 26, weight: 700, align: 'center', color: level === 'danger' ? DANGER : WARN });
       y += 32;
     }
-    this.ctx.globalAlpha = 1;
+    this.ctx.globalAlpha = this.alpha;
   }
 }
