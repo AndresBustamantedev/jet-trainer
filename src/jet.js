@@ -349,8 +349,8 @@ function buildCockpit() {
   g.add(display);
 
   for (const side of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.3, 0.022), dark);
-    post.position.set(side * 0.237, E.y - 0.17, E.z - 0.78);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.38, 0.022), dark);
+    post.position.set(side * 0.237, E.y - 0.13, E.z - 0.78);
     post.rotation.x = -0.1;
     g.add(post);
     const sill = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 1.5), dark);
@@ -367,8 +367,8 @@ function buildCockpit() {
   outline.lineTo(-0.23, -0.17);
   const pts = outline.getPoints(16);
   const glassGroup = new THREE.Group();
-  // Centered on eye level, so the gun reticle sits in the middle of the glass.
-  glassGroup.position.set(0, E.y - 0.02, E.z - 0.78);
+  // Centered a little above eye level, so the gun reticle sits mid-glass with room above.
+  glassGroup.position.set(0, E.y + 0.04, E.z - 0.78);
   glassGroup.rotation.x = -0.1;
   glassGroup.add(new THREE.Mesh(
     new THREE.ShapeGeometry(outline, 16),

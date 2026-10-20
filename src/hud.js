@@ -78,7 +78,7 @@ export class Hud {
       if (poly.some((q) => !q)) poly = null;
     }
     if (!poly) {
-      this.L = { cx: this.w / 2, cy: this.h / 2, tapeOff: Math.min(this.w * 0.27, 380), tapeH: 320, headY: 54, glass: false, k: 1 };
+      this.L = { cx: this.w / 2, cy: this.h / 2, tapeOff: Math.min(this.w * 0.27, 380), tapeH: 320, headY: 54, headHalf: 50, headPpd: 4, glass: false, k: 1 };
       this.ink = INK;
       this.best = BEST;
       return null;
@@ -96,7 +96,10 @@ export class Hud {
       cy: minY + gh * 0.5,
       tapeOff: gw * 0.36,
       tapeH: Math.min(320, gh * 0.55),
-      headY: minY + gh * 0.13,
+      // Heading strip near the bottom of the glass, like a real HUD.
+      headY: maxY - gh * 0.24,
+      headHalf: 30,
+      headPpd: (gw * 0.2) / 30,
       glass: true,
       k: Math.min(0.85, Math.max(0.68, gh / 420)),
       minX, maxX, minY, maxY,
@@ -419,8 +422,8 @@ export class Hud {
     if (hdg < 0) hdg += 360;
     const cx = this.L.cx;
     const y = this.L.headY;
-    const ppd = 4;
-    const half = 50;
+    const ppd = this.L.headPpd;
+    const half = this.L.headHalf;
     for (let d = Math.floor((hdg - half) / 5) * 5; d <= hdg + half; d += 5) {
       const x = cx + (d - hdg) * ppd;
       const dd = ((d % 360) + 360) % 360;
@@ -442,14 +445,14 @@ export class Hud {
   glassStatus(s) {
     const { cx, minY, maxY, tapeOff } = this.L;
     const fm = s.fm;
-    const y = minY + (maxY - minY) * 0.84;
+    const y = minY + (maxY - minY) * 0.64;
     const thr = fm.boost ? 'AB' : fm.throttle > 0 ? 'MIL' : fm.throttle < 0 ? 'BRK' : 'CRZ';
     const left = [`M ${(fm.kmh / 1225).toFixed(2)}`, `G ${fm.g.toFixed(1)}`, thr];
     const gun = s.gun.overheated ? 'GUN OVHT' : s.gun.heat > 0.75 ? 'GUN HOT' : '';
     const right = [`AL ${Math.max(0, Math.round(s.agl))}`, `TURN ${Math.round(fm.turnEff * 100)}`, gun].filter(Boolean);
     const font = { size: 12, weight: 700 };
-    left.forEach((t, i) => this.text(t, cx - tapeOff + 4, y + i * 15, { ...font, color: i === 2 && fm.boost ? WARN : this.ink }));
-    right.forEach((t, i) => this.text(t, cx + tapeOff - 4, y + i * 15, { ...font, align: 'right', color: t.startsWith('GUN ') ? WARN : this.ink }));
+    left.forEach((t, i) => this.text(t, cx - tapeOff + 14, y + i * 15, { ...font, color: i === 2 && fm.boost ? WARN : this.ink }));
+    right.forEach((t, i) => this.text(t, cx + tapeOff - 8, y + i * 15, { ...font, align: 'right', color: t.startsWith('GUN ') ? WARN : this.ink }));
   }
 
   info(s) {
