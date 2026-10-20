@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Explosion } from './jet.js';
 import { WORLD, coloredMerge } from './world.js';
+import { pointInSite } from './places.js';
 
 const DRONES = 20;
 const TANKS = 6;
@@ -153,16 +154,25 @@ export class Targets {
     else this.spawnGround(t);
   }
 
-  // Flat open land, near the town most of the time.
+  // Vehicles stand at the places: mostly the military base, airfield and town, some at the
+  // industrial area and villages. A few stand in open country.
   groundSpot(out) {
     const r = Math.random;
-    const town = this.world.town;
+    const sites = (this.world.sites || []).filter((x) => x.kind !== 'radar');
+    const weight = { base: 3, airfield: 2.5, town: 2, industrial: 1.5, village: 0.6 };
+    const total = sites.reduce((a, x) => a + (weight[x.kind] || 0), 0);
     for (let i = 0; i < 300; i++) {
-      const nearTown = town && r() < 0.6;
-      const x = nearTown ? town.x + (r() * 2 - 1) * 700 : (r() * 2 - 1) * (WORLD.bound - 400);
-      const z = nearTown ? town.y + (r() * 2 - 1) * 700 : (r() * 2 - 1) * (WORLD.bound - 400);
+      let site = null;
+      if (total && r() < 0.9) {
+        let pick = r() * total;
+        site = sites.find((x) => (pick -= weight[x.kind] || 0) <= 0) || sites[0];
+      }
+      if (site) pointInSite(site, r, out);
+      else out.set((r() * 2 - 1) * (WORLD.bound - 400), 0, (r() * 2 - 1) * (WORLD.bound - 400));
+      const x = out.x;
+      const z = out.z;
       const h = this.groundHeight(x, z);
-      if (h > 8 && h < 250 && this.world.slopeAt(x, z) < 0.15 && !this.world.insideBuilding(out.set(x, h + 3, z), 12)) return out.set(x, h, z);
+      if (h > 6 && h < 300 && this.world.slopeAt(x, z) < 0.15 && !this.world.insideBuilding(out.set(x, h + 3, z), 12)) return out.set(x, h, z);
     }
     return out.set(0, Math.max(this.groundHeight(0, 0), 0), 0);
   }

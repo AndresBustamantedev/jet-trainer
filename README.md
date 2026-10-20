@@ -21,6 +21,7 @@ Open http://127.0.0.1:8137. ES modules do not load from `file://`, so a server i
 - `src/menu.js`: pause menu (Esc). Rebinding, sensitivity, preset choice.
 - `src/hud.js`: canvas HUD, including the live input monitor at the bottom.
 - `src/world.js`: island terrain with a per-pixel ground shader (fields, forest floor, rock, snow, beaches), mountain shadows and valley darkening baked at load, height haze that replaces three's fog, sky, soft billboard clouds, rippled water, trees, town. The look's defaults are `DEFAULT_LOOK`.
+- `src/places.js`: the places on the island (town, airfield, military base, industrial area, four villages, radar station): where they go, the leveled ground under them, their buildings and collision boxes.
 - `src/jet.js`: jet model built in code (lofted fuselage, airfoil wings, camo shader), afterburner, wingtip vapor, crash effect.
 - `src/weapons.js`: nose cannon. Rate, damage, bullet speed and overheat are in `GUN` at the top.
 - `src/bombs.js`: the attack jet's unguided bombs, blast damage and the impact prediction the HUD shows. Numbers are in `BOMBS` at the top.
