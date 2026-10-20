@@ -13,7 +13,8 @@ import { Stats } from './stats.js';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// Log depth keeps far surfaces apart. Without it the water flickers over the ground under it.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
 const MAX_PIXEL_RATIO = Math.min(devicePixelRatio, 2);
 let pixelRatio = MAX_PIXEL_RATIO;
 renderer.setPixelRatio(pixelRatio);
@@ -203,7 +204,6 @@ function placeCamera(dt) {
     camera.quaternion.multiply(tilt);
   }
 
-  // A larger near plane gives far surfaces more depth precision (water over shallow ground flickered).
   camera.near = state.cameraMode === 'cockpit' ? 0.25 : 1.5;
   const base = state.cameraMode === 'cockpit' ? 78 : 70;
   let fov = base + clamp((fm.kmh - TUNING.cruiseKmh) / 330, -0.5, 1) * 7;

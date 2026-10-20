@@ -62,9 +62,7 @@ function terrainHeightRaw(x, z) {
   const h = (base - 0.36) * 480 + ridge * ridge * ridge * 420 * mountains;
   const mask = 1 - smoothstep(0.6, 0.97, Math.hypot(x, z) / HALF);
   const out = h * mask + WORLD.seaFloor * (1 - mask);
-  // The seabed drops 20 m just past the shoreline, so it is never close enough to the water
-  // surface for the two to fight over depth far away (that showed as flickering water).
-  return out - 20 * smoothstep(0, -1.5, out);
+  return out - 2.5 * smoothstep(0, -2, out); // keep the seabed a little clear of the water surface
 }
 
 // Where forests grow. Used for both tree placement and the darker forest floor.
@@ -189,7 +187,6 @@ ${GLSL_NOISE}`)
 function waterMaterial(time) {
   const m = new THREE.MeshStandardMaterial({
     color: '#1b5566', roughness: 0.07, metalness: 0, transparent: true, opacity: 0.84, envMapIntensity: 1.1,
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4,
   });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = time;
